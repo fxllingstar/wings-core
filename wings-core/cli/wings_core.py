@@ -68,7 +68,7 @@ def increment_version(current_ver):
 # --- Commands ---
 
 def cmd_hello():
-    print("Hello! This is maksii-core.")
+    print("Hello! This is wings-core.")
 
 def cmd_version(args):
     if args.detailed:
@@ -112,7 +112,6 @@ def cmd_push(args):
 
     current_ver = config.get("local_version", "0.0")
     
-    # Determine new version
     if args.version:
         new_version = args.version
     else:
@@ -120,15 +119,14 @@ def cmd_push(args):
 
     print(f"Pushing version {new_version}...")
     
-    # Zip files
     zip_name = "temp_push_artifact.zip"
     zip_project(zip_name)
     
     try:
-        files = {'file': open(zip_name, 'rb')}
-        data = {'project_id': config['project_id'], 'version': new_version}
-        
-        r = requests.post(f"{config['server']}/push", data=data, files=files)
+        with open(zip_name, 'rb') as f:
+            files = {'file': f}
+            data = {'project_id': config['project_id'], 'version': new_version}
+            r = requests.post(f"{config['server']}/push", data=data, files=files)
         
         if r.status_code == 200:
             config['local_version'] = new_version
@@ -139,7 +137,7 @@ def cmd_push(args):
             print(f"Failed to push: {r.text}")
             
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during push: {e}")
     finally:
         if os.path.exists(zip_name):
             os.remove(zip_name)
@@ -165,30 +163,22 @@ def cmd_pull(args):
         if r.status_code == 200:
             zip_name = "temp_pull.zip"
             with open(zip_name, 'wb') as f:
-                shutil.copyfileobj(r.raw, f)
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
             
-            # Unzip and overwrite
             shutil.unpack_archive(zip_name, '.')
             os.remove(zip_name)
             
-            # If we pulled latest, we need to ask server what that version was, 
-            # or rely on status check. For now, let's update status check.
-            # To keep it simple, we assume the user pulled what they asked or latest.
-            
-            # Update local config with the version we just pulled (requires status call strictly,
-            # but here we update status).
             status_r = requests.get(f"{config['server']}/status", params={'project_id': project_id})
             if status_r.status_code == 200:
                  remote_ver = status_r.json()['remote_version']
-                 # If user requested specific, assume that. If latest, assume remote latest.
-                 final_ver = target_version if target_version else remote_ver
-                 config['local_version'] = final_ver
+                 config['local_version'] = target_version if target_version else remote_ver
                  config['last_hash'] = calculate_hash()
                  save_config(config)
             
             print("Pull complete.")
         else:
-            print("Failed to pull from server.")
+            print(f"Failed to pull: {r.text}")
     except Exception as e:
         print(f"Error: {e}")
 

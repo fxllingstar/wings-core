@@ -1,0 +1,8 @@
+setup.py
+wings_core.py
+wings_core.egg-info/PKG-INFO
+wings_core.egg-info/SOURCES.txt
+wings_core.egg-info/dependency_links.txt
+wings_core.egg-info/entry_points.txt
+wings_core.egg-info/requires.txt
+wings_core.egg-info/top_level.txt
