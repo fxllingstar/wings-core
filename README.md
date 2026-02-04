@@ -10,13 +10,13 @@ The goal is not to clone Git feature-for-feature, but to provide a **clean, unde
 
 ## What it does
 
-At a high level, maksii-core lets you:
+At a high level, wings-core lets you:
 
 * Push a project’s current state to a server you control
 * Pull that state from anywhere else
 * Track versions as immutable snapshots
 * Verify integrity using hashes
-* Integrate cleanly with other tools (Fireside, editors, automation)
+* Integrate cleanly with other tools
 
 Instead of:
 
@@ -50,7 +50,7 @@ wings-core push
 
 ## Core components
 
-### maksii CLI
+### wings CLI
 
 A command-line tool responsible for:
 
@@ -59,7 +59,7 @@ A command-line tool responsible for:
 * Communicating with the server
 * Reporting status in a machine-readable way
 
-### maksii server
+### wings server
 
 A long-running service that:
 
