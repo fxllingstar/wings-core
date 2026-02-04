@@ -1,10 +1,10 @@
-# maksii-core
+# wings-core
 
 > Experimental self-hosted state sync & version system
 
-**maksii-core** is the foundation of a personal, self-reliant alternative to hosted code platforms. Instead of relying on GitHub or `git push`, this project introduces its own CLI, server, and protocol for pushing and pulling project state — fully under your control.
+**wings-core** is the foundation of a personal, self-reliant alternative to hosted code platforms. Instead of relying on GitHub or `git push`, this project introduces its own CLI, server, and protocol for pushing and pulling project state — fully under your control.
 
-The goal is not to clone Git feature-for-feature, but to provide a **clean, understandable, and extensible** system for syncing project snapshots between machines and services (like Fireside).
+The goal is not to clone Git feature-for-feature, but to provide a **clean, understandable, and extensible** system for syncing project snapshots between machines and services.
 
 ---
 
@@ -27,7 +27,7 @@ git push
 You use:
 
 ```bash
-maksii push
+wings-core push
 ```
 ---
 
@@ -59,16 +59,6 @@ A command-line tool responsible for:
 * Communicating with the server
 * Reporting status in a machine-readable way
 
-Planned commands:
-
-```bash
-maksii push
-maksii pull
-maksii status
-```
-
----
-
 ### maksii server
 
 A long-running service that:
@@ -84,7 +74,7 @@ The server acts as the single source of truth — no third-party services involv
 ## Project structure (planned)
 
 ```
-maksii-core/
+wings-core/
 ├── cli/            # maksii command-line tool
 ├── server/         # server daemon
 ├── protocol/       # protocol specifications
@@ -123,7 +113,7 @@ It is both a **learning project** and a **real system** intended for daily use.
 ## Author
 
 **Maksimilian Seymen**
-Creator & maintainer
+Creator & Head Dev <3
 
 ---
 
