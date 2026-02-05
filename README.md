@@ -79,7 +79,6 @@ wings-core/
 ├── server/         # server daemon
 ├── protocol/       # protocol specifications
 ├── docs/           # architecture & design docs
-├── fireside/       # Fireside integration notes
 └── README.md
 ```
 
