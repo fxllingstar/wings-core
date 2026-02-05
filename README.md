@@ -1,4 +1,4 @@
-# wings-core
+# wings-core ꒰ঌ ໒꒱
 
 > Experimental self-hosted state sync & version system
 
