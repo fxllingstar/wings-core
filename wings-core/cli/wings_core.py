@@ -13,9 +13,9 @@ CONFIG_DIR = ".wings"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
 
-# --- App Info ---
+# --- App Info --- Yes, this is hardcoded for now, sue me >:(
 APP_VERSION = "0.1.0"
-LAST_UPDATED = "4/2/2026"
+LAST_UPDATED = "18/2/2026"
 IS_TESTER = True  
 #True for yay false for nay :)
 
