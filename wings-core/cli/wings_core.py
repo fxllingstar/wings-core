@@ -16,7 +16,8 @@ IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
 # --- App Info ---
 APP_VERSION = "0.1.0"
 LAST_UPDATED = "4/2/2026"
-IS_TESTER = True  # Set to True for "Yay", False for "Nay"
+IS_TESTER = True  
+#True for yay false for nay :)
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -47,9 +48,7 @@ def calculate_hash():
 
 def zip_project(output_filename):
     """Zips the current directory excluding .wings folder."""
-    # We use a temporary logic to avoid zipping the .wings folder recursively
-    # For simplicity in this script, we assume standard usage. 
-    # A robust solution would manually write files to zipfile to exclude .wings
+    #Hopefully -_-
     shutil.make_archive(output_filename.replace('.zip', ''), 'zip', '.')
     return output_filename
 
@@ -63,7 +62,7 @@ def increment_version(current_ver):
             minor = 0
         return f"{major}.{minor}"
     except ValueError:
-        return current_ver # Fallback if version string is custom
+        return current_ver # Fallback if version string is custom 
 
 # --- Commands ---
 
@@ -85,7 +84,7 @@ def cmd_init(args):
     cwd_name = os.path.basename(os.getcwd())
     project_id = input(f"Enter project identifier (default: {cwd_name}): ") or cwd_name
     
-    # Register with server
+    # Register with server (yippee)
     try:
         payload = {"project_id": project_id}
         r = requests.post(f"{SERVER_URL}/init", json=payload)
@@ -199,7 +198,7 @@ def cmd_status(args):
     local_ver = config['local_version']
     current_hash = calculate_hash()
     
-    # Very basic file count difference logic for demo
+    # Very basic file count difference logic for demo (this is going to crash soon lol)
     file_count = sum(len(files) for _, _, files in os.walk('.') if '.wings' not in _[0])
     
     sync_status = "Synced"
@@ -250,11 +249,52 @@ def cmd_ping(args):
     try:
         r = requests.get(f"{SERVER_URL}/ping", timeout=2)
         if r.status_code == 200:
-            print("Pong! Server is reachable.")
+            print("Pong! Server is reachable.") #Awh:(
         else:
             print(f"Server responded with {r.status_code}")
     except:
         print("Ping failed. Server is unreachable.")
+
+
+
+def cmd_qotd(args):
+
+    api_key = "T5IPGazplSNa0zshSzXLA54AunEpBaXdGpwaK2pK" 
+    url = "https://api.api-ninjas.com/v2/quoteoftheday"
+    
+    print("🌅 Fetching today's message from the oracle...")
+    
+    try:
+     
+        response = requests.get(url, headers={'X-Api-Key': api_key}, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            quote_obj = data[0] if isinstance(data, list) else data
+            
+            quote = quote_obj.get('quote')
+            author = quote_obj.get('author')
+            
+            if quote:
+                print("\n" + "═" * 50)
+                print(f"  TODAY'S WISDOM")
+                print("─" * 50)
+                print(f"  \"{quote}\"")
+                print(f"\n  — {author}")
+                print("═" * 50 + "\n")
+            else:
+                print("The oracle is resting. No quote found in the response. awh:(")
+                
+        elif response.status_code == 401:
+            print("❌ Error: Invalid API Key. Please verify your key in wings_core.py.")
+        else:
+            print(f"❌ Oracle is unavailable. (Status: {response.status_code})")
+            
+    except Exception as e:
+        print(f"❌ The connection to the oracle was lost: {e}")
+
+
 
 # --- Main CLI Parser ---
 
@@ -280,6 +320,7 @@ def main():
     subparsers.add_parser('list')
     subparsers.add_parser('verify')
     subparsers.add_parser('ping')
+    subparsers.add_parser('QOTD', help="Get a dose of wisdom (Easter Egg)")
 
     # Parse only known args to handle the "wings-core" (no args) case manually
     if len(sys.argv) == 1:
@@ -293,7 +334,7 @@ def main():
     if '--version' in sys.argv:
         cmd_version(argparse.Namespace(detailed=True))
         return
-
+    
     args = parser.parse_args()
 
     if args.command == 'init': cmd_init(args)
@@ -304,7 +345,9 @@ def main():
     elif args.command == 'verify': cmd_verify(args)
     elif args.command == 'ping': cmd_ping(args)
     elif args.detailed_version: cmd_version(argparse.Namespace(detailed=True))
+    elif args.command == 'qotd': cmd_qotd(args)
     else: parser.print_help()
-
+    
+#Run 
 if __name__ == "__main__":
     main()
