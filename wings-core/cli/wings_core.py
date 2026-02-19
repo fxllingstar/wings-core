@@ -5,7 +5,10 @@ import json
 import requests
 import shutil
 import hashlib
+import importlib.metadata
 from datetime import datetime
+
+
 
 # --- Configuration ---
 SERVER_URL = "http://127.0.0.1:5000"
@@ -14,9 +17,13 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
 
 # --- App Info --- Yes, this is hardcoded for now, sue me >:(
-APP_VERSION = "0.1.0"
+try:
+    APP_VERSION = importlib.metadata.version("wings_core")
+except importlib.metadata.PackageNotFoundError:
+    APP_VERSION = "0.0.0-dev"
 LAST_UPDATED = "18/2/2026"
 IS_TESTER = True  
+IS_USER = False
 #True for yay false for nay :)
 
 def load_config():

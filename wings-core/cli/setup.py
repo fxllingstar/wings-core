@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='wings-core',
-    version='0.1.1',
+    version='0.1.5',
     py_modules=['wings_core'], # This looks for wings_core.py
     install_requires=[
         'requests',
@@ -14,3 +14,4 @@ setup(
         ],
     },
 )
+from setuptools import setup
