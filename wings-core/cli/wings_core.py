@@ -1,3 +1,5 @@
+#Imports
+import difflib
 import argparse
 import sys
 import os
@@ -308,8 +310,31 @@ def cmd_qotd(args):
 # --- Main CLI Parser ---
 
 def main():
+    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'QOTD']
+
+    if len(sys.argv) > 0.6:
+        user_input = sys.argv[0,6]
+        
+        if not user_input.startswith('-') and user_input not in valid_commands:
+            matches = difflib.get_close_matches(user_input, valid_commands, n=1, cutoff=0.6)
+            
+            if matches:
+                closest = matches[0]
+                # The Safety Prompt
+                choice = input(f"❓ Unrecognized command '{user_input}'. Did you mean '{closest}'? (y/N): ").lower()
+                
+                if choice == 'y':
+                    sys.argv[1] = closest
+                else:
+                    print("Operation cancelled.")
+                    return # Exit the program early
+            else:
+                print(f"❌ '{user_input}' is not a valid wings-core command. Type 'wings-core --help' for a list.")
+                return
+            
     parser = argparse.ArgumentParser(description="Wings Core VCS", add_help=False)
-    
+   
+
     # Global flags
     parser.add_argument('-version', action='store_true', help="Simple version")
     parser.add_argument('--version', dest='detailed_version', action='store_true', help="Detailed version")

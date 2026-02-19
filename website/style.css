@@ -22,3 +22,9 @@ body {
         color: #000000;
         font-size: 2em;
 }
+
+.top-navbar{
+    display:flex;
+    justify-content: space-between;
+    
+}
