@@ -1,6 +1,7 @@
 #Imports
 import difflib
 import argparse
+from logging import config
 import sys
 import os
 import json
@@ -266,6 +267,33 @@ def cmd_ping(args):
     except:
         print("Ping failed. Server is unreachable.")
 
+def cmd_terminate(args):
+    config = load_config()
+    if not config:
+        print("This project is currently not tracked by wings-core.")
+        return
+
+    print(f"⚠️  WARNING: You are about to terminate tracking for project: {config['project_id']}")
+    print("This will delete all metadata. You will NOT be able to push or pull anymore unless you re-initialize.")
+    confirm = input("Are you absolutely sure? (y/n): ").lower()
+
+if confirm == 'y':
+    try:
+        if os.path.exists(CONFIG_DIR):
+            shutil.rmtree(CONFIG_DIR)
+            print(f"✅ Success: Tracking terminated. '{config['project_id']}' is now just a regular folder.")
+        else:
+            print("No metadata folder found, but config was loaded. Clean-up may be required.")
+    except Exception as e:
+        print(f"❌ Error during termination: {e}")
+else:
+
+    print("\n🛡️  Termination aborted. Your project is still being tracked.")
+    print("Nothing was deleted.")
+
+
+
+
 
 
 def cmd_qotd(args):
@@ -273,7 +301,7 @@ def cmd_qotd(args):
     api_key = "T5IPGazplSNa0zshSzXLA54AunEpBaXdGpwaK2pK" 
     url = "https://api.api-ninjas.com/v2/quoteoftheday"
     
-    print("🌅 Fetching today's message from the oracle...")
+    print("Fetching today's message from the oracle...")
     
     try:
      
@@ -310,10 +338,10 @@ def cmd_qotd(args):
 # --- Main CLI Parser ---
 
 def main():
-    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'QOTD']
+    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'QOTD', 'terminate']
 
-    if len(sys.argv) > 0.6:
-        user_input = sys.argv[0,6]
+    if len(sys.argv) > 1:
+        user_input = sys.argv[1]
         
         if not user_input.startswith('-') and user_input not in valid_commands:
             matches = difflib.get_close_matches(user_input, valid_commands, n=1, cutoff=0.6)
@@ -355,7 +383,7 @@ def main():
     subparsers.add_parser('verify')
     subparsers.add_parser('ping')
     subparsers.add_parser('QOTD', help="Get a dose of wisdom (Easter Egg)")
-
+    subparsers.add_parser('terminate')
     # Parse only known args to handle the "wings-core" (no args) case manually
     if len(sys.argv) == 1:
         cmd_hello()
@@ -380,6 +408,7 @@ def main():
     elif args.command == 'ping': cmd_ping(args)
     elif args.detailed_version: cmd_version(argparse.Namespace(detailed=True))
     elif args.command == 'qotd': cmd_qotd(args)
+    elif args.command == 'terminate': cmd_terminate(args)
     else: parser.print_help()
     
 #Run 
