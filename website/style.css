@@ -1,30 +1,193 @@
-body {
+/* ========== GLOBAL RESET ========== */
+* {
     margin: 0;
     padding: 0;
-    background-color: #f0f0f0;
+    box-sizing: border-box;
 }
 
-.landing-page h1{
-     font-family: "Bitcount Grid Double", system-ui;
-     color: #fff;
-     font-size: 3em;
+body {
+    background: linear-gradient(180deg, #0a0a0f 0%, #111122 100%);
+    color: white;
+    font-family: "Oswald", sans-serif;
+    overflow-x: hidden;
 }
 
-.landing-page img{
-    border-radius: 50% ;
-
+/* ========== MAIN CONTAINER ========== */
+.maincontainer {
+    width: 100%;
+    min-height: 100vh;
 }
 
-
-/*VERY basic, needs to be redone for all the elements, but this is just to get the ball rolling :)*/
-.functionality-page{
-      font-family: "Oswald", sans-serif;
-        color: #000000;
-        font-size: 2em;
-}
-
-.top-navbar{
-    display:flex;
+/* ========== NAVBAR ========== */
+.top-navbar {
+    width: 100%;
+    padding: 20px 60px;
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: rgba(10, 10, 15, 0.7);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    z-index: 1000;
+}
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo h1 {
+    font-family: "Bitcount Grid Double", sans-serif;
+    font-weight: 600;
+    letter-spacing: 2px;
+    font-size: 1.5rem;
+}
+
+.logo img {
+    width: 45px;
+    height: 45px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+
+#particles-js {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 0;
+    height: 100%; 
+}
+
+/* Keep text above particles */
+
+
+/* ========== NAV LINKS ========== */
+.nav-links {
+    display: flex;
+    gap: 30px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #aaa;
+    font-size: 1rem;
+    transition: 0.3s ease;
+    position: relative;
+}
+
+.nav-links a:hover {
+    color: #00c3ff;
+}
+
+.nav-links a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -4px;
+    width: 0%;
+    height: 2px;
+    background: #00c3ff;
+    transition: 0.3s ease;
+}
+
+.nav-links a:hover::after {
+    width: 100%;
+}
+
+/* ========== LANDING PAGE ========== */
+
+.landing-page {
+    position: relative;
+    margin-top: 180px;
+    text-align: center;
+    padding: 0 20%;
+    overflow: hidden;
+     min-height: 100vh;
+        position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.landingpageh1 h1 {
+    font-size: 4rem;
+    font-family: "Bitcount Grid Double", sans-serif;
+    color: white;
+    text-shadow: 0 0 20px rgba(0, 195, 255, 0.4);
+}
+
+.landing-page h3 {
+    margin-top: 30px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: #ccc;
+}
+.landingpageh1,
+.landing-page h3 {
+    position: relative;
+    z-index: 2;
+}
+
+/* ========== FUNCTIONALITY SECTION ========== */
+.functionality-page {
+    margin-top: 150px;
+    padding: 80px 20%;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.functionality-page h2 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+}
+
+.functionality-page ul {
+    margin-top: 20px;
+    list-style: none;
+}
+
+.functionality-page li {
+    margin-bottom: 15px;
+    padding-left: 20px;
+    position: relative;
+    color: #ccc;
+}
+
+.functionality-page li::before {
+    content: ">";
+    position: absolute;
+    left: 0;
+    color: #00c3ff;
+}
+
+/* ========== FOOTER (HARD TO SEE 😈) ========== */
+.footer {
+    margin-top: 200px;
+    text-align: center;
+    font-size: 0.8rem;
+    opacity: 0.08;
+    transition: 0.4s ease;
+    cursor: pointer;
+}
+
+.footer:hover {
+    opacity: 0.4;
+}
+
+.landing-page::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 150px;
+    background: linear-gradient(to bottom, transparent, #0a0a0f);
+    z-index: 1;
 }
