@@ -277,19 +277,18 @@ def cmd_terminate(args):
     print("This will delete all metadata. You will NOT be able to push or pull anymore unless you re-initialize.")
     confirm = input("Are you absolutely sure? (y/n): ").lower()
 
-if confirm == 'y':
-    try:
-        if os.path.exists(CONFIG_DIR):
-            shutil.rmtree(CONFIG_DIR)
-            print(f"✅ Success: Tracking terminated. '{config['project_id']}' is now just a regular folder.")
-        else:
-            print("No metadata folder found, but config was loaded. Clean-up may be required.")
-    except Exception as e:
-        print(f"❌ Error during termination: {e}")
-else:
-
-    print("\n🛡️  Termination aborted. Your project is still being tracked.")
-    print("Nothing was deleted.")
+    if confirm == 'y':
+        try:
+            if os.path.exists(CONFIG_DIR):
+                shutil.rmtree(CONFIG_DIR)
+                print(f"✅ Success: Tracking terminated. '{config['project_id']}' is now just a regular folder.")
+            else:
+                print("No metadata folder found, but config was loaded. Clean-up may be required.")
+        except Exception as e:
+            print(f"❌ Error during termination: {e}")
+    else:
+        print("\n🛡️  Termination aborted. Your project is still being tracked.")
+        print("Nothing was deleted.")
 
 
 
@@ -333,7 +332,33 @@ def cmd_qotd(args):
     except Exception as e:
         print(f"❌ The connection to the oracle was lost: {e}")
 
+def cmd_delete_remote(args):
+    config = load_config()
+    if not config:
+        print("❌ Not a wings-core project.")
+        return
 
+    project_id = config['project_id']
+    
+    # Extra-strength confirmation
+    print(f"💣 CRITICAL WARNING: This will permanently delete ALL versions of '{project_id}' from the server.")
+    print("This action CANNOT be undone.")
+    
+    # Verification challenge
+    verify = input(f"Type the project name '{project_id}' to confirm deletion: ")
+    
+    if verify == project_id:
+        try:
+            r = requests.post(f"{config['server']}/delete", json={'project_id': project_id})
+            if r.status_code == 200:
+                print(f"✅ Server Response: {r.text}")
+                print("Remote data wiped. You may want to run 'wings-core terminate' locally now.")
+            else:
+                print(f"❌ Failed: {r.text}")
+        except Exception as e:
+            print(f"❌ Could not connect to server: {e}")
+    else:
+        print("❌ Verification failed. Deletion aborted.")
 
 # --- Main CLI Parser ---
 
@@ -377,6 +402,8 @@ def main():
     pull_parser = subparsers.add_parser('pull')
     pull_parser.add_argument('-v', dest='version', help="Specify version manually")
     
+
+
     subparsers.add_parser('init')
     subparsers.add_parser('status')
     subparsers.add_parser('list')
@@ -384,6 +411,7 @@ def main():
     subparsers.add_parser('ping')
     subparsers.add_parser('QOTD', help="Get a dose of wisdom (Easter Egg)")
     subparsers.add_parser('terminate')
+    subparsers.add_parser('delete-remote', help="Wipe project data from the server")
     # Parse only known args to handle the "wings-core" (no args) case manually
     if len(sys.argv) == 1:
         cmd_hello()
@@ -409,6 +437,7 @@ def main():
     elif args.detailed_version: cmd_version(argparse.Namespace(detailed=True))
     elif args.command == 'qotd': cmd_qotd(args)
     elif args.command == 'terminate': cmd_terminate(args)
+    elif args.command == 'delete-remote': cmd_delete_remote(args)
     else: parser.print_help()
     
 #Run 
