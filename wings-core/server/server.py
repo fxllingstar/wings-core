@@ -23,7 +23,7 @@ def save_project_meta(project_id, data):
 
 @app.route('/ping', methods=['GET'])
 def ping():
-    return jsonify({"status": "alive", "message": "Wings Server is running"}), 200
+    return jsonify({"status": "alive", "message": "Wings-core Server is running!"}), 200 #Yayy
 
 @app.route('/init', methods=['POST'])
 def init_project():

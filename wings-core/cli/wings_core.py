@@ -16,14 +16,16 @@ CONFIG_DIR = ".wings"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
 
-# --- App Info --- Yes, this is hardcoded for now, sue me >:(
+# --- App Info --- 
 try:
     APP_VERSION = importlib.metadata.version("wings_core")
 except importlib.metadata.PackageNotFoundError:
-    APP_VERSION = "0.0.0-dev"
-LAST_UPDATED = "18/2/2026"
+    APP_VERSION = "0.1.5-dev"
+    last_mod_time = os.path.getmtime(__file__)
+LAST_UPDATED = datetime.datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
 IS_TESTER = True  
 IS_USER = False
+#
 #True for yay false for nay :)
 
 def load_config():
