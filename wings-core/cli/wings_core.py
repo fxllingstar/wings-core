@@ -1,7 +1,7 @@
 #Imports
 import difflib
 import argparse
-from logging import config
+import zipfile
 import sys
 import os
 import json
@@ -46,22 +46,36 @@ def save_config(data):
 def calculate_hash():
     """Calculates a simple hash of the current directory state for verification."""
     sha = hashlib.sha256()
+    warned = False
+
     for root, dirs, files in os.walk('.'):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+
         for name in files:
             filepath = os.path.join(root, name)
             try:
                 with open(filepath, "rb") as f:
                     while chunk := f.read(4096):
                         sha.update(chunk)
-            except OSError:
-                pass
+            except OSError as e:
+                if not warned:
+                    print("⚠ Warning: Some files could not be read during hashing.")
+                    warned = True
+
     return sha.hexdigest()
 
 def zip_project(output_filename):
-    """Zips the current directory excluding .wings folder."""
-    #Hopefully -_-
-    shutil.make_archive(output_filename.replace('.zip', ''), 'zip', '.')
+    """Zips the current directory excluding IGNORE_DIRS."""
+    with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk('.'):
+            # Filter ignored directories
+            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+
+            for file in files:
+                filepath = os.path.join(root, file)
+                arcname = os.path.relpath(filepath, '.')
+                zipf.write(filepath, arcname)
+
     return output_filename
 
 def increment_version(current_ver):
@@ -99,7 +113,7 @@ def cmd_init(args):
     # Register with server (yippee)
     try:
         payload = {"project_id": project_id}
-        r = requests.post(f"{SERVER_URL}/init", json=payload)
+        r = requests.post(f"{SERVER_URL}/init", json=payload,timeout=15)
         if r.status_code in [200, 201]:
             config = {
                 "project_id": project_id,
@@ -137,7 +151,7 @@ def cmd_push(args):
         with open(zip_name, 'rb') as f:
             files = {'file': f}
             data = {'project_id': config['project_id'], 'version': new_version}
-            r = requests.post(f"{config['server']}/push", data=data, files=files)
+            r = requests.post(f"{config['server']}/push", data=data, files=files , timeout=30)
         
         if r.status_code == 200:
             config['local_version'] = new_version
@@ -158,6 +172,12 @@ def cmd_pull(args):
     if not config:
         print("Not a wings-core project.")
         return
+    
+    current_hash = calculate_hash()
+    if current_hash != config.get('last_hash'):
+        print("❌ Pull aborted: You have local changes.")
+        print("Run 'wings-core push' or restore your files before pulling.")
+        return
 
     project_id = config['project_id']
     target_version = args.version 
@@ -169,7 +189,7 @@ def cmd_pull(args):
         if target_version:
             params['version'] = target_version
             
-        r = requests.get(f"{config['server']}/pull", params=params, stream=True)
+        r = requests.get(f"{config['server']}/pull", params=params, stream=True, timeout=10)
         
         if r.status_code == 200:
             zip_name = "temp_pull.zip"
@@ -180,7 +200,7 @@ def cmd_pull(args):
             shutil.unpack_archive(zip_name, '.')
             os.remove(zip_name)
             
-            status_r = requests.get(f"{config['server']}/status", params={'project_id': project_id})
+            status_r = requests.get(f"{config['server']}/status", timeout=10, params={'project_id': project_id})
             if status_r.status_code == 200:
                  remote_ver = status_r.json()['remote_version']
                  config['local_version'] = target_version if target_version else remote_ver
@@ -201,17 +221,23 @@ def cmd_status(args):
     
     # Check remote
     try:
-        r = requests.get(f"{config['server']}/status", params={'project_id': config['project_id']})
+        r = requests.get(
+            f"{config['server']}/status", 
+            params={'project_id': config['project_id']}, 
+            timeout=10
+        )
         remote_ver = r.json().get('remote_version', 'Unknown')
-    except:
+    except (requests.exceptions.RequestException, ValueError):
         remote_ver = "Unreachable"
 
     # Check sync status
-    local_ver = config['local_version']
+    local_ver = config.get('local_version', '0.0')
     current_hash = calculate_hash()
     
-    # Very basic file count difference logic for demo (this is going to crash soon lol)
-    file_count = sum(len(files) for _, _, files in os.walk('.') if '.wings' not in _[0])
+    file_count = 0
+    for root, dirs, files in os.walk('.'):
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+        file_count += len(files)
     
     sync_status = "Synced"
     if local_ver != remote_ver:
@@ -225,6 +251,7 @@ def cmd_status(args):
     print(f"Status: {sync_status}")
     print(f"Total Files: {file_count}")
 
+
 def cmd_list(args):
     config = load_config()
     if not config:
@@ -232,7 +259,7 @@ def cmd_list(args):
         return
     
     try:
-        r = requests.get(f"{config['server']}/list", params={'project_id': config['project_id']})
+        r = requests.get(f"{config['server']}/list", timeout=10, params={'project_id': config['project_id']})
         if r.status_code == 200:
             versions = r.json().get('versions', [])
             print("Available versions on server:")
@@ -240,7 +267,7 @@ def cmd_list(args):
                 print(f" - {v}")
         else:
             print("Could not fetch list.")
-    except:
+    except requests.exceptions.RequestException:
         print("Server unreachable.")
 
 def cmd_verify(args):
@@ -259,12 +286,12 @@ def cmd_verify(args):
 
 def cmd_ping(args):
     try:
-        r = requests.get(f"{SERVER_URL}/ping", timeout=2)
+        r = requests.get(f"{SERVER_URL}/ping", timeout=5)
         if r.status_code == 200:
             print("Pong! Server is reachable.") #Awh:(
         else:
             print(f"Server responded with {r.status_code}")
-    except:
+    except requests.exceptions.RequestException:
         print("Ping failed. Server is unreachable.")
 
 def cmd_terminate(args):
@@ -349,7 +376,7 @@ def cmd_delete_remote(args):
     
     if verify == project_id:
         try:
-            r = requests.post(f"{config['server']}/delete", json={'project_id': project_id})
+            r = requests.post(f"{config['server']}/delete", json={'project_id': project_id}, timeout=15)
             if r.status_code == 200:
                 print(f"✅ Server Response: {r.text}")
                 print("Remote data wiped. You may want to run 'wings-core terminate' locally now.")
@@ -363,7 +390,7 @@ def cmd_delete_remote(args):
 # --- Main CLI Parser ---
 
 def main():
-    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'QOTD', 'terminate']
+    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'qotd', 'terminate']
 
     if len(sys.argv) > 1:
         user_input = sys.argv[1]
@@ -409,7 +436,7 @@ def main():
     subparsers.add_parser('list')
     subparsers.add_parser('verify')
     subparsers.add_parser('ping')
-    subparsers.add_parser('QOTD', help="Get a dose of wisdom (Easter Egg)")
+    subparsers.add_parser('qotd', help="Get a dose of wisdom (Easter Egg)")
     subparsers.add_parser('terminate')
     subparsers.add_parser('delete-remote', help="Wipe project data from the server")
     # Parse only known args to handle the "wings-core" (no args) case manually
