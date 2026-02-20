@@ -13,13 +13,13 @@ from datetime import datetime
 
 
 
-# --- Configuration ---
+# --- Configuration --- ooh shiny
 SERVER_URL = "http://127.0.0.1:5000"
 CONFIG_DIR = ".wings"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
 
-# --- App Info --- 
+# --- App Info ---  Yes is tester is hard coded, sue me>:( 
 try:
     APP_VERSION = importlib.metadata.version("wings_core")
 except importlib.metadata.PackageNotFoundError:
@@ -104,7 +104,7 @@ def cmd_version(args):
 
 def cmd_init(args):
     if os.path.exists(CONFIG_FILE):
-        print("Wings-core is already initialized here.")
+        print("Wings-core is already initialized here. HAHA")
         return
 
     cwd_name = os.path.basename(os.getcwd())
@@ -122,17 +122,17 @@ def cmd_init(args):
                 "last_hash": calculate_hash()
             }
             save_config(config)
-            print(f"Initialized empty wings-core project in {os.getcwd()}")
+            print(f"Initialized empty wings-core project in {os.getcwd()} NICE!.")
             print(f"Project Identifier: {project_id}")
         else:
             print(f"Server error: {r.text}")
     except requests.exceptions.ConnectionError:
-        print("Could not connect to wings-core server.")
+        print("Could not connect to wings-core server. Sad:( ")
 
 def cmd_push(args):
     config = load_config()
     if not config:
-        print("Not a wings-core project. Run 'wings-core init' first.")
+        print("Not a wings-core project. Run 'wings-core init' first. nuh uh")
         return
 
     current_ver = config.get("local_version", "0.0")
@@ -142,7 +142,7 @@ def cmd_push(args):
     else:
         new_version = increment_version(current_ver)
 
-    print(f"Pushing version {new_version}...")
+    print(f"Pushing version {new_version}... is it working? Idk why are you asking me")
     
     zip_name = "temp_push_artifact.zip"
     zip_project(zip_name)
@@ -157,12 +157,12 @@ def cmd_push(args):
             config['local_version'] = new_version
             config['last_hash'] = calculate_hash()
             save_config(config)
-            print(f"Successfully pushed version {new_version}")
+            print(f"Successfully pushed version {new_version} YOOO LETS GOO")
         else:
-            print(f"Failed to push: {r.text}")
+            print(f"Failed to push: {r.text}, aw dang it :(")
             
     except Exception as e:
-        print(f"Error during push: {e}")
+        print(f"Error during push: {e} sad:(")
     finally:
         if os.path.exists(zip_name):
             os.remove(zip_name)
@@ -170,13 +170,13 @@ def cmd_push(args):
 def cmd_pull(args):
     config = load_config()
     if not config:
-        print("Not a wings-core project.")
+        print("Not a wings-core project. INIT FIRST HUMAN >:(")
         return
     
     current_hash = calculate_hash()
     if current_hash != config.get('last_hash'):
         print("❌ Pull aborted: You have local changes.")
-        print("Run 'wings-core push' or restore your files before pulling.")
+        print("Run 'wings-core push' or restore your files before pulling. Safety First!")
         return
 
     project_id = config['project_id']
@@ -207,16 +207,16 @@ def cmd_pull(args):
                  config['last_hash'] = calculate_hash()
                  save_config(config)
             
-            print("Pull complete.")
+            print("Pull complete. OOHH SHINY NEW FILES")
         else:
-            print(f"Failed to pull: {r.text}")
+            print(f"Failed to pull: {r.text}, Awh:( no shiny new files")
     except Exception as e:
         print(f"Error: {e}")
 
 def cmd_status(args):
     config = load_config()
     if not config:
-        print("Not a wings-core project.")
+        print("Not a wings-core project. INIT FIRST >:(")
         return
     
     # Check remote
@@ -241,9 +241,9 @@ def cmd_status(args):
     
     sync_status = "Synced"
     if local_ver != remote_ver:
-        sync_status = "Out of sync (Version mismatch)"
+        sync_status = "Out of sync (Version mismatch) something is not right here :("
     elif current_hash != config.get('last_hash'):
-        sync_status = "Out of sync (Local changes)"
+        sync_status = "Out of sync (Local changes) Something is not right here too :("
 
     print(f"Project: {config['project_id']}")
     print(f"Local version: {local_ver}")
@@ -255,7 +255,7 @@ def cmd_status(args):
 def cmd_list(args):
     config = load_config()
     if not config:
-        print("Not a wings-core project.")
+        print("Not a wings-core project. INIT FIRSTTTT!")
         return
     
     try:
@@ -266,9 +266,9 @@ def cmd_list(args):
             for v in versions:
                 print(f" - {v}")
         else:
-            print("Could not fetch list.")
+            print("Could not fetch list. :(")
     except requests.exceptions.RequestException:
-        print("Server unreachable.")
+        print("Server unreachable. Awh dang it :(")
 
 def cmd_verify(args):
     config = load_config()
@@ -280,9 +280,9 @@ def cmd_verify(args):
     stored = config.get('last_hash')
     
     if current == stored:
-        print("Integrity Verified: Local state matches last known snapshot.")
+        print("Integrity Verified: Local state matches last known snapshot. Yippee!")
     else:
-        print("Integrity Warning: Local files have changed since last operation.")
+        print("Integrity Warning: Local files have changed since last operation. Pay attention plz >:(")
 
 def cmd_ping(args):
     try:
@@ -297,28 +297,25 @@ def cmd_ping(args):
 def cmd_terminate(args):
     config = load_config()
     if not config:
-        print("This project is currently not tracked by wings-core.")
+        print("This project is currently not tracked by wings-core. Nuh uh")
         return
 
     print(f"⚠️  WARNING: You are about to terminate tracking for project: {config['project_id']}")
-    print("This will delete all metadata. You will NOT be able to push or pull anymore unless you re-initialize.")
+    print("This will delete all metadata. You will NOT be able to push or pull anymore unless you re-initialize. READ. >:(")
     confirm = input("Are you absolutely sure? (y/n): ").lower()
 
     if confirm == 'y':
         try:
             if os.path.exists(CONFIG_DIR):
                 shutil.rmtree(CONFIG_DIR)
-                print(f"✅ Success: Tracking terminated. '{config['project_id']}' is now just a regular folder.")
+                print(f"✅ Success: Tracking terminated. '{config['project_id']}' is now just a regular folder. Byee, wings-core is outa heree")
             else:
-                print("No metadata folder found, but config was loaded. Clean-up may be required.")
+                print("No metadata folder found, but config was loaded. Clean-up may be required. BRING THE VACUUM CLEANERR")
         except Exception as e:
-            print(f"❌ Error during termination: {e}")
+            print(f"❌ Error during termination: {e} Wings-core did not leave :)")
     else:
         print("\n🛡️  Termination aborted. Your project is still being tracked.")
-        print("Nothing was deleted.")
-
-
-
+        print("Nothing was deleted. YAY!")
 
 
 
@@ -369,7 +366,7 @@ def cmd_delete_remote(args):
     
     # Extra-strength confirmation
     print(f"💣 CRITICAL WARNING: This will permanently delete ALL versions of '{project_id}' from the server.")
-    print("This action CANNOT be undone.")
+    print("This action CANNOT be undone. BOOM")
     
     # Verification challenge
     verify = input(f"Type the project name '{project_id}' to confirm deletion: ")
