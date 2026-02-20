@@ -376,13 +376,13 @@ def cmd_delete_remote(args):
             r = requests.post(f"{config['server']}/delete", json={'project_id': project_id}, timeout=15)
             if r.status_code == 200:
                 print(f"✅ Server Response: {r.text}")
-                print("Remote data wiped. You may want to run 'wings-core terminate' locally now.")
+                print("Remote data wiped. You may want to run 'wings-core terminate' locally now. Adios!")
             else:
                 print(f"❌ Failed: {r.text}")
         except Exception as e:
             print(f"❌ Could not connect to server: {e}")
     else:
-        print("❌ Verification failed. Deletion aborted.")
+        print("❌ Verification failed. Deletion aborted. Sadlyy")
 
 # --- Main CLI Parser ---
 
