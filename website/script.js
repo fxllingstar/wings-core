@@ -34,3 +34,14 @@ document.querySelector(".footer").addEventListener("click", () => {
         confirmButtonColor: "#00c3ff"
     });
 });
+
+
+gsap.from(".commandslist", {
+    scrollTrigger: {
+        trigger: ".commandslist",
+        start: "top 80%",
+    },
+    y: 100,
+    opacity: 0,
+    duration: 1.5
+});

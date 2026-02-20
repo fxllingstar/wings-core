@@ -191,3 +191,36 @@ body {
     background: linear-gradient(to bottom, transparent, #0a0a0f);
     z-index: 1;
 }
+
+.commandslist ul {
+    margin-top: 20px;
+    list-style: none;
+}
+
+.commandslist li {
+    margin-bottom: 15px;
+    padding-left: 20px;
+    position: relative;
+    color: #ccc;
+}
+
+.commandslist li::before {
+    content: ">";
+    position: absolute;
+    left: 0;
+    color: #00c3ff;
+}
+
+.commandslist {
+    margin-top: 150px;
+    padding: 80px 20%;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.commandslist h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+}

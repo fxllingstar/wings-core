@@ -25,7 +25,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     APP_VERSION = "0.1.5-dev"
     last_mod_time = os.path.getmtime(__file__)
-LAST_UPDATED = datetime.datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
+LAST_UPDATED = datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
 IS_TESTER = True  
 IS_USER = False
 #
