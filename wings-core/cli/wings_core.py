@@ -1,7 +1,9 @@
 #Imports
 import difflib
+import getpass
 import argparse
 import zipfile
+import logging
 import sys
 import os
 import json
@@ -78,6 +80,24 @@ def zip_project(output_filename):
 
     return output_filename
 
+def get_logger(session_name="wings"):
+    log_dir = os.path.join(CONFIG_DIR, "logs")
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    log_file = os.path.join(log_dir, f"{session_name}.log")
+    
+    # Configure logging ooh!
+    logging.basicConfig(
+        filename=log_file,
+        filemode='w', # Overwrite for the current session
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+    return logging.getLogger(), log_file
+
+
+
 def increment_version(current_ver):
     """Handles logic: 1.0 -> 1.1 ... 1.9 -> 2.0"""
     try:
@@ -136,6 +156,9 @@ def cmd_push(args):
         return
 
     current_ver = config.get("local_version", "0.0")
+
+    logger, log_path = get_logger("push_session")
+    logger.info(f"Starting push process for project: {config['project_id']}")
     
     if args.version:
         new_version = args.version
@@ -146,6 +169,31 @@ def cmd_push(args):
     
     zip_name = "temp_push_artifact.zip"
     zip_project(zip_name)
+
+    try:
+        with open(zip_name, 'rb') as f, open(log_path, 'rb') as l:
+            files = {
+                'file': f,
+                'log': l  # Sending the log file to the server (maybe)
+            }
+            data = {'project_id': config['project_id'], 'version': new_version}
+            
+            logger.info(f"Uploading version {new_version} to {config['server']}...")
+            r = requests.post(f"{config['server']}/push", data=data, files=files, timeout=30)
+            
+            # Log the response time
+            logger.info(f"Server response received in {r.elapsed.total_seconds()}s")
+            if r.elapsed.total_seconds() > 10:
+                logger.warning("Server response time is quite long. Something might be wrong with the server or your connection. Server may be overloaded. :(")
+
+        if r.status_code == 200:
+            logger.info("Push confirmed successful by server.")
+            # ... (save config logic) ...
+        else:
+            logger.error(f"Server rejected push: {r.text}")
+             
+    except Exception as e:
+        logger.error(f"Critical failure during push: {e}")
     
     try:
         with open(zip_name, 'rb') as f:
@@ -166,6 +214,65 @@ def cmd_push(args):
     finally:
         if os.path.exists(zip_name):
             os.remove(zip_name)
+
+
+
+def cmd_whoami(args):
+    config = load_config()
+    current_user = getpass.getuser()
+    
+    # 1. Identity Header
+    print("\n" + "═" * 30)
+    print(f"WINGS-CORE IDENTITY")
+    print("═" * 30)
+    
+    # 2. User Info
+    print(f"Current User   : {current_user}")
+    
+    # 3. Connection Info
+    if config:
+        print(f"Connected To   : {config.get('server', 'Not set')}")
+        print(f"Project ID     : {config.get('project_id', 'None')}")
+        
+        # 4. Token Status (Future-proofed)
+        token = config.get('token')
+        if token:
+            # We hide the full token for security, showing only the first 4 chars
+            masked_token = f"{token[:4]}****" 
+            print(f"Token Status   : ✅ Active ({masked_token})")
+        else:
+            print(f"Token Status   : ❌ No Token (Not Authenticated)")
+    else:
+        print(f"Server Status  : ⚠️  Not in a wings project folder.")
+        print(f"Token Status   : N/A")
+    
+    print("═" * 30 + "\n")
+
+
+
+def cmd_logs(args):
+    config = load_config()
+    if not config:
+        print("❌ Not a wings-core project.")
+        return
+
+    version = args.version or "latest"
+    print(f"📂 Fetching logs for {config['project_id']} (Version: {version})...")
+
+    try:
+        params = {'project_id': config['project_id'], 'version': version}
+        r = requests.get(f"{config['server']}/logs", params=params, timeout=10)
+
+        if r.status_code == 200:
+            print("\n--- SERVER LOG START ---")
+            print(r.text)
+            print("--- SERVER LOG END ---\n")
+        else:
+            print(f"❌ Could not find logs for this version: {r.text}")
+    except Exception as e:
+        print(f"❌ Error fetching logs: {e}")
+
+
 
 def cmd_pull(args):
     config = load_config()
@@ -387,7 +494,7 @@ def cmd_delete_remote(args):
 # --- Main CLI Parser ---
 
 def main():
-    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'qotd', 'terminate']
+    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'qotd', 'terminate', 'delete-remote', 'logs', 'whoami']
 
     if len(sys.argv) > 1:
         user_input = sys.argv[1]
@@ -422,7 +529,8 @@ def main():
     # Subcommands
     push_parser = subparsers.add_parser('push')
     push_parser.add_argument('-v', dest='version', help="Specify version manually")
-    
+    logs_parser = subparsers.add_parser('logs', help="Fetch process logs from the server")
+    logs_parser.add_argument('-v', '--version', dest='version', help="Fetch logs for a specific version")
     pull_parser = subparsers.add_parser('pull')
     pull_parser.add_argument('-v', dest='version', help="Specify version manually")
     
@@ -436,6 +544,8 @@ def main():
     subparsers.add_parser('qotd', help="Get a dose of wisdom (Easter Egg)")
     subparsers.add_parser('terminate')
     subparsers.add_parser('delete-remote', help="Wipe project data from the server")
+    subparsers.add_parser('whoami', help="Show current user and connection info")
+
     # Parse only known args to handle the "wings-core" (no args) case manually
     if len(sys.argv) == 1:
         cmd_hello()
@@ -451,15 +561,18 @@ def main():
     
     args = parser.parse_args()
 
+
     if args.command == 'init': cmd_init(args)
     elif args.command == 'push': cmd_push(args)
     elif args.command == 'pull': cmd_pull(args)
     elif args.command == 'status': cmd_status(args)
     elif args.command == 'list': cmd_list(args)
+    elif args.command == 'whoami': cmd_whoami(args)
     elif args.command == 'verify': cmd_verify(args)
     elif args.command == 'ping': cmd_ping(args)
     elif args.detailed_version: cmd_version(argparse.Namespace(detailed=True))
     elif args.command == 'qotd': cmd_qotd(args)
+    elif args.command == 'logs': cmd_logs(args)
     elif args.command == 'terminate': cmd_terminate(args)
     elif args.command == 'delete-remote': cmd_delete_remote(args)
     else: parser.print_help()

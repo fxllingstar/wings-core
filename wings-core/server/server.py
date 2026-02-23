@@ -45,16 +45,29 @@ def push():
     project_id = request.form['project_id']
     version = request.form['version']
     
-    # Save the file
     project_path = os.path.join(STORAGE_DIR, project_id)
     if not os.path.exists(project_path):
         return jsonify({"error": "Project does not exist"}), 404
         
+    # --- 1. Save the Project Zip ---
     file = request.files['file']
     filename = secure_filename(f"{version}.zip")
-    save_path = os.path.join(project_path, filename)
-    file.save(save_path)
+    file.save(os.path.join(project_path, filename))
     
+    # --- 2. Save the Log File (New!) ---
+    if 'log' in request.files:
+        log_file = request.files['log']
+        log_filename = secure_filename(f"{version}.log")
+        log_file.save(os.path.join(project_path, log_filename))
+    
+    # Update Metadata
+    meta = get_project_meta(project_id)
+    if version not in meta['versions']:
+        meta['versions'].append(version)
+    meta['latest_version'] = version
+    save_project_meta(project_id, meta)
+    
+
     # Update Metadata
     meta = get_project_meta(project_id)
     if version not in meta['versions']:
@@ -79,6 +92,27 @@ def list_versions():
     if meta:
         return jsonify({"versions": meta['versions']}), 200
     return jsonify({"versions": []}), 404
+
+@app.route('/logs', methods=['GET'])
+def get_logs():
+    project_id = request.args.get('project_id')
+    version = request.args.get('version')
+    
+    meta = get_project_meta(project_id)
+    if not meta:
+        return "Project not found", 404
+        
+    # If no version specified or 'latest', get the newest one
+    if not version or version == "latest":
+        version = meta['latest_version']
+        
+    log_path = os.path.join(STORAGE_DIR, project_id, f"{version}.log")
+    
+    if os.path.exists(log_path):
+        # We use mimetype="text/plain" so the CLI can read it easily as text 
+        return send_file(log_path, mimetype="text/plain")
+    else:
+        return f"No log file found for version {version}", 404
 
 @app.route('/pull', methods=['GET'])
 def pull():
