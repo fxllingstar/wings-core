@@ -1,7 +1,9 @@
 The "Wings-core" Public License
 
 
-​Copyright (c) 2026 Wings-core
+​Copyright (c) 2026 Wings-core 
+
+fxllingstar on Github
 
 
 
