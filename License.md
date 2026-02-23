@@ -11,12 +11,19 @@ fxllingstar on Github
 
 
 ​1. Ownership & Attribution
+
+
 ​Ownership: The original author (listed above) retains all intellectual property rights and ownership of the original source code.
 
-​Attribution: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. If you republish, redistribute, or host a public fork of this code, you must provide clear and visible credit to the original author.
+
+​Attribution:
+
+ The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. If you republish, redistribute, or host a public fork of this code, you must provide clear and visible credit to the original author.
 
 
 ​2. Permissions
+
+
 ​You are expressly permitted to:
 ​View and audit the source code.
 ​Modify and edit the code for personal or commercial use.
