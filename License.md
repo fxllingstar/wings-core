@@ -25,6 +25,7 @@ fxllingstar on Github
 
 
 ​You are expressly permitted to:
+
 ​View and audit the source code.
 ​Modify and edit the code for personal or commercial use.
 ​Integrate the code into other applications (including mobile platforms).
