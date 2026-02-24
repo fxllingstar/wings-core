@@ -111,7 +111,7 @@ It is both a **learning project** and a **real system** intended for daily use.
 
 ## Author
 
-**Maksimilian Seymen**
+**fxllingstar**
 Creator & Head Dev <3
 
 ---
