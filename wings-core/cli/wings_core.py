@@ -22,12 +22,17 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
 
 # --- App Info ---  Yes is tester is hard coded, sue me>:( 
+# --- App Info (Dynamic) ---
 try:
-    APP_VERSION = importlib.metadata.version("wings_core")
+    # Note: Use the name as defined in your setup.py (usually 'wings-core')
+    APP_VERSION = importlib.metadata.version("wings-core")
 except importlib.metadata.PackageNotFoundError:
     APP_VERSION = "0.1.5-dev"
-    last_mod_time = os.path.getmtime(__file__)
+
+# Move this HERE so it always runs
+last_mod_time = os.path.getmtime(__file__)
 LAST_UPDATED = datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
+
 IS_TESTER = True  
 IS_USER = False
 #
@@ -152,66 +157,47 @@ def cmd_init(args):
 def cmd_push(args):
     config = load_config()
     if not config:
-        print("Not a wings-core project. Run 'wings-core init' first. nuh uh")
+        print("❌ Not a wings-core project. Run 'wings-core init' first.>:(")
         return
 
     current_ver = config.get("local_version", "0.0")
-
+    new_version = args.version if args.version else increment_version(current_ver)
+    
+    # 1. Start Logger
     logger, log_path = get_logger("push_session")
-    logger.info(f"Starting push process for project: {config['project_id']}")
-    
-    if args.version:
-        new_version = args.version
-    else:
-        new_version = increment_version(current_ver)
+    logger.info(f"Starting push for {config['project_id']} v{new_version}")
 
-    print(f"Pushing version {new_version}... is it working? Idk why are you asking me")
-    
     zip_name = "temp_push_artifact.zip"
+    print(f"📦 Packing version {new_version}...")
     zip_project(zip_name)
 
+    # 2. Shut down logging temporarily so we can read the file to send it
+    # This prevents the "Permission Denied" error on Windows(WINDOWS IS SO ANNOYINGGG RAHHH)
+    logging.shutdown() 
+
     try:
+        print(f"🚀 Pushing to {config['server']}...")
         with open(zip_name, 'rb') as f, open(log_path, 'rb') as l:
             files = {
-                'file': f,
-                'log': l  # Sending the log file to the server (maybe)
+                'file': (f"{new_version}.zip", f),
+                'log': (f"{new_version}.log", l)
             }
             data = {'project_id': config['project_id'], 'version': new_version}
             
-            logger.info(f"Uploading version {new_version} to {config['server']}...")
             r = requests.post(f"{config['server']}/push", data=data, files=files, timeout=30)
-            
-            # Log the response time
-            logger.info(f"Server response received in {r.elapsed.total_seconds()}s")
-            if r.elapsed.total_seconds() > 10:
-                logger.warning("Server response time is quite long. Something might be wrong with the server or your connection. Server may be overloaded. :(")
-
-        if r.status_code == 200:
-            logger.info("Push confirmed successful by server.")
-            # ... (save config logic) ...
-        else:
-            logger.error(f"Server rejected push: {r.text}")
-             
-    except Exception as e:
-        logger.error(f"Critical failure during push: {e}")
-    
-    try:
-        with open(zip_name, 'rb') as f:
-            files = {'file': f}
-            data = {'project_id': config['project_id'], 'version': new_version}
-            r = requests.post(f"{config['server']}/push", data=data, files=files , timeout=30)
         
         if r.status_code == 200:
             config['local_version'] = new_version
             config['last_hash'] = calculate_hash()
             save_config(config)
-            print(f"Successfully pushed version {new_version} YOOO LETS GOO")
+            print(f"✅ Successfully pushed version {new_version}! YOOO LETS GOO")
         else:
-            print(f"Failed to push: {r.text}, aw dang it :(")
+            print(f"❌ Failed to push: {r.text}")
             
     except Exception as e:
-        print(f"Error during push: {e} sad:(")
+        print(f"❌ Error during push: {e}")
     finally:
+        # Clean up the temp file
         if os.path.exists(zip_name):
             os.remove(zip_name)
 
@@ -580,3 +566,13 @@ def main():
 #Run 
 if __name__ == "__main__":
     main()
+
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n🛑 Operation cancelled by user. Exiting...")
+
+        if os.path.exists("temp_push_artifact.zip"):
+            os.remove("temp_push_artifact.zip")
+            print("Exit successful!")
+        sys.exit(0)

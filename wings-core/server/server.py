@@ -66,14 +66,7 @@ def push():
         meta['versions'].append(version)
     meta['latest_version'] = version
     save_project_meta(project_id, meta)
-    
 
-    # Update Metadata
-    meta = get_project_meta(project_id)
-    if version not in meta['versions']:
-        meta['versions'].append(version)
-    meta['latest_version'] = version
-    save_project_meta(project_id, meta)
     
     return jsonify({"message": f"Version {version} pushed successfully."}), 200
 
