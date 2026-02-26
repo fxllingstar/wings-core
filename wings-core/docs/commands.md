@@ -4,7 +4,9 @@ Structure:
 Name of Command - What it does 
 
 **Main Command List**
-- wings-core : If the app is installed and functional says *Hello! This is maksii-core.*
+
+
+- wings-core : If the app is installed and functional says *Hello! This is wings-core.*
 
 - wings-core -version : Says the simple version of the app (Ex: Version: 0.1.0)
 
@@ -36,6 +38,20 @@ Actions:
 - Links the project to a server
 - Generates a project identifier-
 
+
+**DANGER** 
+
+- wings-core terminate
+
+Stops tracking the current folder.
+Write wings-core init to re-initialize the app.
+
+
+- wings-core delete-remote
+
+DELETES ALL THE FILES FROM THE SERVER!!!
+
+
 **Utility & Debug Commands**
 
 - wings-core list
@@ -47,3 +63,13 @@ Verifies integrity of the local project against stored hashes.
 - wings-core ping
 Checks connectivity to the configured server.
 
+- wings-core whoami
+
+══════════════════════════════
+👤 WINGS-CORE IDENTITY
+══════════════════════════════
+Current User   : ???
+Connected To   : http://127.0.0.1:5000
+Project ID     : wings-try
+Token Status   : ❌ No Token (Not Authenticated)
+══════════════════════════════
