@@ -10,7 +10,7 @@ The goal is not to clone Git feature-for-feature, but to provide a **clean, unde
 
 wings-core is licensed under the GNU Affero General Public License v3.0.
 If you run a modified version of this software as a service, you must provide access to the source code of your modifications.
-
+Read the License file here: https://github.com/fxllingstar/wings-core/blob/main/LICENSE
 
 ---
 
