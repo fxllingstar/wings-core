@@ -6,6 +6,12 @@
 
 The goal is not to clone Git feature-for-feature, but to provide a **clean, understandable, and extensible** system for syncing project snapshots between machines and services.
 
+**!!IMPORTANT!!**
+
+wings-core is licensed under the GNU Affero General Public License v3.0.
+If you run a modified version of this software as a service, you must provide access to the source code of your modifications.
+
+
 ---
 
 ## What it does
