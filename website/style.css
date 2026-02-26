@@ -224,3 +224,21 @@ body {
     font-size: 1.5rem;
     margin-bottom: 20px;
 }
+
+.legal {
+    margin-top: 150px;
+    padding: 80px 20%;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.legal h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+}
+
+.legal h3 {
+    color: #ccc;
+    line-height: 1.6;
+}
