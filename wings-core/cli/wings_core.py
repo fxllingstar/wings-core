@@ -33,7 +33,7 @@ except importlib.metadata.PackageNotFoundError:
 last_mod_time = os.path.getmtime(__file__)
 LAST_UPDATED = datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
 
-IS_TESTER = True  
+IS_TESTER = True
 IS_USER = False
 #
 #True for yay false for nay :)
@@ -410,7 +410,30 @@ def cmd_terminate(args):
         print("\n🛡️  Termination aborted. Your project is still being tracked.")
         print("Nothing was deleted. YAY!")
 
+def cmd_set_server(args):
+    config = load_config()
+    if not config:
+        print("❌ Not a wings-core project. Run 'wings-core init' first.")
+        return
 
+    new_url = args.url.strip()
+
+    # Basic validation: Ensure it starts with http:// or https://
+    if not new_url.startswith(("http://", "https://")):
+        print("❌ Invalid URL. Please include 'http://' or 'https://'.")
+        return
+
+    # Remove trailing slash if the user added one (to keep URLs consistent)
+    if new_url.endswith("/"):
+        new_url = new_url[:-1]
+
+    old_url = config.get('server', 'Unknown')
+    config['server'] = new_url
+    save_config(config)
+
+    print(f"✅ Server address updated!")
+    print(f"   From: {old_url}")
+    print(f"   To:   {new_url}")
 
 def cmd_qotd(args):
 
@@ -521,7 +544,8 @@ def main():
     pull_parser.add_argument('-v', dest='version', help="Specify version manually")
     
 
-
+    server_parser = subparsers.add_parser('set-server', help="Change the server URL for this project")
+    server_parser.add_argument('url', help="The new server URL (e.g., http://1.2.3.4:5000)")
     subparsers.add_parser('init')
     subparsers.add_parser('status')
     subparsers.add_parser('list')
@@ -554,6 +578,7 @@ def main():
     elif args.command == 'status': cmd_status(args)
     elif args.command == 'list': cmd_list(args)
     elif args.command == 'whoami': cmd_whoami(args)
+    elif args.command == 'set-server': cmd_set_server(args)
     elif args.command == 'verify': cmd_verify(args)
     elif args.command == 'ping': cmd_ping(args)
     elif args.detailed_version: cmd_version(argparse.Namespace(detailed=True))
