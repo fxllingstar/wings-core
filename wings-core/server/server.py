@@ -3,6 +3,22 @@ import json
 import shutil
 from flask import Flask, request, jsonify, send_file
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+# Load the variables from .env into the system
+load_dotenv()
+
+# Use os.getenv to grab them
+ADMIN_TOKEN = os.getenv("WINGS_ADMIN_TOKEN")
+PORT = int(os.getenv("WINGS_SERVER_PORT", 5000)) # 5000 is the fallback
+DEBUG = os.getenv("DEBUG_MODE") == "True"
+
+# Now your require_auth function uses the secret from the .env!
+def require_auth(request):
+    auth_header = request.headers.get('Authorization')
+    if auth_header == f"Bearer {ADMIN_TOKEN}":
+        return True
+    return False
 
 app = Flask(__name__)
 STORAGE_DIR = "wings_storage"
@@ -14,6 +30,10 @@ def get_project_meta(project_id):
         with open(path, 'r') as f:
             return json.load(f)
     return None
+
+
+
+
 
 # Helper: Save project metadata
 def save_project_meta(project_id, data):

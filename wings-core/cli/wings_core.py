@@ -163,6 +163,15 @@ def cmd_push(args):
     current_ver = config.get("local_version", "0.0")
     new_version = args.version if args.version else increment_version(current_ver)
     
+# Inside the try block of cmd_push
+    headers = {"Authorization": f"Bearer {config.get('token')}"}
+    
+    r = requests.post(f"{config['server']}/push", 
+                     data=data, 
+                     files=files, 
+                     headers=headers, # Pass the token!
+                     timeout=30)
+
     # 1. Start Logger
     logger, log_path = get_logger("push_session")
     logger.info(f"Starting push for {config['project_id']} v{new_version}")
@@ -410,30 +419,62 @@ def cmd_terminate(args):
         print("\n🛡️  Termination aborted. Your project is still being tracked.")
         print("Nothing was deleted. YAY!")
 
+def cmd_login(args):
+    config = load_config()
+    if not config:
+        print("❌ Please run 'wings-core init' first.")
+        return
+
+    print("🔑 Wings-Core Authentication")
+    username = input("Username: ")
+    password = getpass.getpass("Password: ") 
+
+    try:
+        r = requests.post(f"{config['server']}/login", 
+                         json={"username": username, "password": password}, 
+                         timeout=10)
+        
+        if r.status_code == 200:
+            token = r.json().get('token')
+            config['token'] = token
+            save_config(config)
+            print("✅ Login successful! Token saved.")
+        else:
+            print(f"❌ Login failed: {r.json().get('error')}")
+    except Exception as e:
+        print(f"❌ Could not connect to authentication server: {e}")
+
+
+
 def cmd_set_server(args):
     config = load_config()
     if not config:
-        print("❌ Not a wings-core project. Run 'wings-core init' first.")
+        print("❌ Not a wings-core project.")
         return
 
-    new_url = args.url.strip()
-
-    # Basic validation: Ensure it starts with http:// or https://
+    new_url = args.url.strip().rstrip("/")
     if not new_url.startswith(("http://", "https://")):
-        print("❌ Invalid URL. Please include 'http://' or 'https://'.")
+        print("❌ Invalid URL. Use http:// or https://")
         return
 
-    # Remove trailing slash if the user added one (to keep URLs consistent)
-    if new_url.endswith("/"):
-        new_url = new_url[:-1]
-
-    old_url = config.get('server', 'Unknown')
-    config['server'] = new_url
-    save_config(config)
-
-    print(f"✅ Server address updated!")
-    print(f"   From: {old_url}")
-    print(f"   To:   {new_url}")
+    print(f"📡 Verifying server at {new_url}...")
+    try:
+        # We try to hit the /ping endpoint we made earlier
+        r = requests.get(f"{new_url}/ping", timeout=5)
+        if r.status_code == 200 and "wings" in r.text.lower():
+            config['server'] = new_url
+            save_config(config)
+            print(f"✅ Success! Server address updated to {new_url}")
+        else:
+            print("⚠️  Warning: The server responded, but it doesn't look like a Wings server.")
+            confirm = input("Save anyway? (y/N): ").lower()
+            if confirm == 'y':
+                config['server'] = new_url
+                save_config(config)
+                print("✅ Address saved.")
+    except Exception:
+        print("❌ Could not reach the server. Is it running?")
+        print("Address NOT changed.")
 
 def cmd_qotd(args):
 
@@ -503,7 +544,7 @@ def cmd_delete_remote(args):
 # --- Main CLI Parser ---
 
 def main():
-    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'qotd', 'terminate', 'delete-remote', 'logs', 'whoami']
+    valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'qotd', 'terminate', 'delete-remote', 'logs', 'whoami', 'login', 'set-server']
 
     if len(sys.argv) > 1:
         user_input = sys.argv[1]
@@ -548,6 +589,7 @@ def main():
     server_parser.add_argument('url', help="The new server URL (e.g., http://1.2.3.4:5000)")
     subparsers.add_parser('init')
     subparsers.add_parser('status')
+    subparsers.add_parser('login', help="Authenticate with the server")
     subparsers.add_parser('list')
     subparsers.add_parser('verify')
     subparsers.add_parser('ping')
@@ -556,7 +598,7 @@ def main():
     subparsers.add_parser('delete-remote', help="Wipe project data from the server")
     subparsers.add_parser('whoami', help="Show current user and connection info")
 
-    # Parse only known args to handle the "wings-core" (no args) case manually
+
     if len(sys.argv) == 1:
         cmd_hello()
         return
@@ -581,6 +623,7 @@ def main():
     elif args.command == 'set-server': cmd_set_server(args)
     elif args.command == 'verify': cmd_verify(args)
     elif args.command == 'ping': cmd_ping(args)
+    elif args.command == 'login': cmd_login(args)
     elif args.detailed_version: cmd_version(argparse.Namespace(detailed=True))
     elif args.command == 'qotd': cmd_qotd(args)
     elif args.command == 'logs': cmd_logs(args)
