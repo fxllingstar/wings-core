@@ -1,37 +1,50 @@
 @echo off
 setlocal
 
-:: Define the installation directory
+:: This ensures the script knows it's running from the folder where it's saved
+cd /d "%~dp0"
+
 set "INSTALL_DIR=%USERPROFILE%\.wings-bin"
 set "EXE_NAME=wings-core.exe"
 
 echo 🛠️  Installing Wings-Core CLI...
 
-:: 1. Create the directory if it doesn't exist
-if not exist "%INSTALL_DIR%" (
-    mkdir "%INSTALL_DIR%"
-)
-
-:: 2. Copy the exe to the install directory
-copy /Y "%EXE_NAME%" "%INSTALL_DIR%\" >nul
-if %errorlevel% neq 0 (
-    echo ❌ Error: Could not copy %EXE_NAME%. Make sure it's in this folder!
+:: 1. Check if the EXE actually exists in this folder before trying to copy
+if not exist "%EXE_NAME%" (
+    echo.
+    echo ❌ ERROR: I can't find %EXE_NAME% in this folder!
+    echo Current Folder: %CD%
+    echo.
+    echo Please make sure 'install.bat' and '%EXE_NAME%' are in the same place.
     pause
     exit /b
 )
 
-:: 3. Add to PATH for the current user (if not already there)
+:: 2. Create the bin directory
+if not exist "%INSTALL_DIR%" (
+    mkdir "%INSTALL_DIR%"
+)
+
+:: 3. Copy the exe
+echo 📦 Moving file to %INSTALL_DIR%...
+copy /Y "%EXE_NAME%" "%INSTALL_DIR%\" >nul
+
+if %errorlevel% neq 0 (
+    echo ❌ Permission Error: Try right-clicking this script and 'Run as Administrator'.
+    pause
+    exit /b
+)
+
+:: 4. Update PATH
 echo %PATH% | find /I "%INSTALL_DIR%" >nul
 if %errorlevel% neq 0 (
-    echo 📡 Adding Wings-Core to your System PATH...
+    echo 📡 Adding to System PATH...
     setx PATH "%PATH%;%INSTALL_DIR%"
-    echo ✅ PATH updated!
-) else (
-    echo ✨ Wings-Core is already in your PATH.
 )
 
 echo.
 echo ═══ INSTALLATION COMPLETE ═══
-echo 🚀 Restart your terminal (CMD or PowerShell) to start using 'wings-core'!
+echo 🚀 CLOSE this terminal and open a NEW one.
+echo 🚀 Then type: wings-core
 echo ═════════════════════════════
 pause
