@@ -54,6 +54,26 @@ wings-core push
 
 ---
 
+How to Use Wings-Core
+Wings-Core is a self-hosted version control and sync tool. You host your own data, and you control the server.
+
+1. Hosting Your Server (The Backend)
+You need to have a server running to store your projects.
+
+Using Docker (Recommended)
+Clone this repository.
+
+Run the server:
+docker-compose up -d
+
+Your server is now running on http://localhost:5000.
+
+Using Python Directly
+
+1. Navigate to the server folder.
+2. Install dependencies: pip install -r requirements.txt
+3. Start the server: python server.py
+
 ## Core components
 
 ### wings CLI
