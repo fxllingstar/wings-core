@@ -58,6 +58,11 @@ IS_TESTER = False
 IS_USER = True
 #
 #True for yay false for nay :)
+def get_auth_headers(config):
+    token = config.get("token")
+    if not token:
+        raise PermissionError("Not authenticated. Run init first.")
+    return {"Authorization": f"Bearer {token}"}
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -158,34 +163,75 @@ def cmd_version(args):
 
 def cmd_init(args):
     if os.path.exists(CONFIG_FILE):
-        print("Wings-core is already initialized here. HAHA")
+        print("Wings-core is already initialized here. HAHAHA")
         return
 
     cwd_name = os.path.basename(os.getcwd())
     project_id = input(f"Enter project identifier (default: {cwd_name}): ") or cwd_name
-    
-    
-    # Register with server (yippee)
+
+    print("🔐 Authentication Required")
+    username = input("Username: ")
+    password = getpass.getpass("Password: ")
+
     try:
-        payload = {"project_id": project_id}
-        r = requests.post(f"{get_active_server()}/init", json=payload,timeout=15)
+        # Step 1: Login
+        login_response = requests.post(
+            f"{get_active_server()}/login",
+            json={"username": username, "password": password},
+            timeout=10
+        )
+
+        if login_response.status_code != 200:
+            print("❌ Authentication failed.")
+            return
+
+        token = login_response.json().get("token")
+        if not token:
+            print("❌ Invalid login response.")
+            return
+
+        # Step 2: Register project
+        r = requests.post(
+            f"{get_active_server()}/init",
+            json={"project_id": project_id},
+            timeout=15
+        )
+
         if r.status_code in [200, 201]:
             config = {
                 "project_id": project_id,
                 "local_version": "0.0",
                 "server": get_active_server(),
-                "last_hash": calculate_hash()
+                "last_hash": calculate_hash(),
+                "token": token
             }
+
             save_config(config)
-            print(f"Initialized empty wings-core project in {os.getcwd()} NICE!.")
+
+            print(f" Project initialized and authenticated. YAYYY")
             print(f"Project Identifier: {project_id}")
+
         else:
             print(f"Server error: {r.text}")
-    except requests.exceptions.ConnectionError:
-        print("Could not connect to wings-core server. Sad:( ")
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Connection error: {e} AWH:(")
+
+def get_auth_headers(config, require_auth=False):
+    token = config.get('token')
+
+    if require_auth and not token:
+        raise PermissionError("You are not logged in. Run 'wings-core login' first.")
+
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+
+    return {}
+
 
 def cmd_push(args):
     config = load_config()
+    
     if not config:
         print("❌ Not a wings-core project.")
         return
@@ -213,7 +259,12 @@ def cmd_push(args):
         current_hash = calculate_hash()
         logger.info(f"Current Hash: {current_hash}")
 
-        headers = {"Authorization": f"Bearer {config.get('token')}"}
+        try:
+             headers = get_auth_headers(config)
+        except PermissionError as e:
+            print(f"❌ {e}")
+            logger.error("Push aborted: user not authenticated.")
+            return
 
         logger.info("Opening files for upload...")
 
@@ -245,6 +296,9 @@ def cmd_push(args):
 
             logger.info("Push successful. Config updated.")
             print(f"✅ Successfully pushed version {new_version}!")
+        elif r.status_code == 403:
+            logger.warning("Server rejected authentication (403).")
+            print("❌ Unauthorized! Please run 'wings-core login' first.")
         else:
             logger.error("Push failed.")
             print(f"❌ Failed to push: {r.text}")
@@ -341,7 +395,12 @@ def cmd_pull(args):
         if target_version:
             params['version'] = target_version
             
-        headers = {"Authorization": f"Bearer {config.get('token')}"}
+        try:
+            headers = get_auth_headers(config, require_auth=True)
+        except PermissionError as e:
+            print(f"❌ {e}")
+            return
+
         r = requests.post(f"{config['server']}/delete", 
                          json={'project_id': project_id}, 
                          headers=headers, 
@@ -364,10 +423,10 @@ def cmd_pull(args):
             
             status_r = requests.get(f"{config['server']}/status", timeout=10, params={'project_id': project_id})
             if status_r.status_code == 200:
-                 remote_ver = status_r.json()['remote_version']
-                 config['local_version'] = target_version if target_version else remote_ver
-                 config['last_hash'] = calculate_hash()
-                 save_config(config)
+                remote_ver = status_r.json()['remote_version']
+                config['local_version'] = target_version if target_version else remote_ver
+                config['last_hash'] = calculate_hash()
+                save_config(config)
             
             print("Pull complete. OOHH SHINY NEW FILES")
         else:
@@ -421,7 +480,12 @@ def cmd_list(args):
         return
     
     try:
-        headers = {"Authorization": f"Bearer {config.get('token')}"}
+        try:
+            headers = get_auth_headers(config, require_auth=True)
+        except PermissionError as e:
+            print(f"❌ {e}")
+            return
+        
         r = requests.get(f"{config['server']}/list", 
                          params={'project_id': config['project_id']}, 
                          headers=headers, 
@@ -491,24 +555,42 @@ def cmd_login(args):
 
     print("🔑 Wings-Core Authentication")
     username = input("Username: ")
-    password = getpass.getpass("Password: ") 
+    password = getpass.getpass("Password: ")
 
     try:
-        r = requests.post(f"{config['server']}/login", 
-                         json={"username": username, "password": password}, 
-                         timeout=10)
-        
+        r = requests.post(
+            f"{config['server']}/login",
+            json={"username": username, "password": password},
+            timeout=10
+        )
+
         if r.status_code == 200:
-            token = r.json().get('token')
+            try:
+                data = r.json()
+            except ValueError:
+                print("❌ Server returned invalid JSON.")
+                return
+
+            token = data.get('token')
+
+            if not token:
+                print("❌ Login failed: No token received.")
+                return
+
             config['token'] = token
             save_config(config)
-            print("✅ Login successful! Token saved.")
+            print("✅ Login successful! Token saved securely.")
+
         else:
-            print(f"❌ Login failed: {r.json().get('error')}")
-    except Exception as e:
+            try:
+                error = r.json().get('error', r.text)
+            except ValueError:
+                error = r.text
+
+            print(f"❌ Login failed: {error}")
+
+    except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to authentication server: {e}")
-
-
 
 def cmd_set_server(args):
     config = load_config()
@@ -594,7 +676,7 @@ def cmd_delete_remote(args):
     
     if verify == project_id:
         try:
-            headers = {"Authorization": f"Bearer {config.get('token')}"}
+            headers = get_auth_headers(config, require_auth=True)
             r = requests.post(f"{config['server']}/delete", 
                              json={'project_id': project_id}, 
                              headers=headers, 
@@ -605,6 +687,8 @@ def cmd_delete_remote(args):
                 print("Remote data wiped. You may want to run 'wings-core terminate' locally now. Adios!")
             else:
                 print(f"❌ Failed: {r.text}")
+        except PermissionError as e:
+            print(f"❌ {e}")
         except Exception as e:
             print(f"❌ Could not connect to server: {e}")
     else:

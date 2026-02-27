@@ -21,6 +21,8 @@
 import os
 import json
 import shutil
+import hashlib
+import secrets
 from flask import Flask, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -28,18 +30,25 @@ from dotenv import load_dotenv
 # Load the variables from .env into the system
 load_dotenv()
 
-# Use os.getenv to grab them
+
+
 ADMIN_TOKEN = os.getenv("WINGS_ADMIN_TOKEN")
 PORT = int(os.getenv("WINGS_SERVER_PORT", 5000)) # 5000 is the fallback
 DEBUG = os.getenv("DEBUG_MODE") == "True"
+USERS_FILE = "users.json"
+TOKENS = {}  # in-memory token storage
 
-# Now your require_auth function uses the secret from the .env!
-def require_auth(request):
-    auth_header = request.headers.get('Authorization')
-    if auth_header == f"Bearer {ADMIN_TOKEN}":
-        return True
-    return False
+def require_auth():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return False
 
+    if not auth_header.startswith("Bearer "):
+        return False
+
+    token = auth_header.split(" ")[1]
+
+    return token in TOKENS
 app = Flask(__name__)
 STORAGE_DIR = "wings_storage"
 
@@ -51,8 +60,46 @@ def get_project_meta(project_id):
             return json.load(f)
     return None
 
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
+    with open(USERS_FILE, "r") as f:
+        return json.load(f)
+
+def save_users(users):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=4)
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    if not username or not password:
+        return jsonify({"error": "Missing credentials"}), 400
+
+    users = load_users()
+    password_hash = hash_password(password)
+
+    # If user doesn't exist → register automatically
+    if username not in users:
+        users[username] = password_hash
+        save_users(users)
+    else:
+        # Validate password
+        if users[username] != password_hash:
+            return jsonify({"error": "Invalid password"}), 401
+
+    # Generate token
+    token = secrets.token_hex(32)
+    TOKENS[token] = username
+
+    return jsonify({"token": token}), 200
 
 
 # Helper: Save project metadata
@@ -82,6 +129,10 @@ def init_project():
 
 @app.route('/push', methods=['POST'])
 def push():
+    if not require_auth():
+        return jsonify({"error": "Unauthorized"}), 403
+
+
     project_id = request.form['project_id']
     version = request.form['version']
     
@@ -120,6 +171,9 @@ def status():
 
 @app.route('/list', methods=['GET'])
 def list_versions():
+    if not require_auth():
+        return jsonify({"error": "Unauthorized"}), 403
+
     project_id = request.args.get('project_id')
     meta = get_project_meta(project_id)
     if meta:
@@ -128,6 +182,9 @@ def list_versions():
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
+    if not require_auth():
+        return jsonify({"error": "Unauthorized"}), 403
+
     project_id = request.args.get('project_id')
     version = request.args.get('version')
     
@@ -149,6 +206,10 @@ def get_logs():
 
 @app.route('/pull', methods=['GET'])
 def pull():
+    if not require_auth():
+        return jsonify({"error": "Unauthorized"}), 403
+
+
     project_id = request.args.get('project_id')
     version = request.args.get('version')
     
