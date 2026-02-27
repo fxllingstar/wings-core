@@ -12,6 +12,11 @@ wings-core is licensed under the GNU Affero General Public License v3.0.
 If you run a modified version of this software as a service, you must provide access to the source code of your modifications.
 Read the License file here: https://github.com/fxllingstar/wings-core/blob/main/LICENSE
 
+**ALSO IMPORTANT.**
+
+CLI: Install via pip (or the release file).
+Server: Clone the repo and run from the /server directory.
+
 ---
 
 ## What it does
