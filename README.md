@@ -74,6 +74,29 @@ Using Python Directly
 2. Install dependencies: pip install -r requirements.txt
 3. Start the server: python server.py
 
+
+Using the CLI (The Frontend)
+Once your server is up, you can use the wings-core tool to manage your files.
+
+Installation
+
+pip install .
+
+Initial Setup
+
+Go to your project folder and run:
+
+
+# 1. Start a new project
+wings-core init
+
+# 2. Point to your personal server
+wings-core set-server http://your-server-ip:5000
+
+# 3. Log in (Default: admin / wings)
+wings-core login
+
+
 ## Core components
 
 ### wings CLI
