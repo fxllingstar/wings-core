@@ -153,4 +153,4 @@ Creator & Head Dev <3
 ---
 
 ## License
-TBD
+AGPLv3
