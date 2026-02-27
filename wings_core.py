@@ -33,25 +33,29 @@ from datetime import datetime
 
 
 # --- Configuration --- ooh shiny
-SERVER_URL = "http://127.0.0.1:5000"
+DEFAULT_SERVER = "http://127.0.0.1:5000"  # Fallback if no server is set
 CONFIG_DIR = ".wings"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
-IGNORE_DIRS = {'.wings', '__pycache__', '.git'}
+IGNORE_DIRS = {'.wings', '__pycache__', '.git', 'node_modules', '.venv'} # Added a few more common ignores
 
+def get_active_server():
+    """Returns the server URL from config, or the default if not found."""
+    config = load_config()
+    if config and config.get('server'):
+        return config.get('server').rstrip('/')
+    return DEFAULT_SERVER
 # --- App Info ---  Yes is tester is hard coded, sue me>:( 
-# --- App Info (Dynamic) ---
 try:
     # Note: Use the name as defined in your setup.py (usually 'wings-core')
     APP_VERSION = importlib.metadata.version("wings-core")
 except importlib.metadata.PackageNotFoundError:
-    APP_VERSION = "0.1.5-dev"
+    APP_VERSION = "1.0.0-release" # Fallback version if not installed properly
 
-# Move this HERE so it always runs
 last_mod_time = os.path.getmtime(__file__)
 LAST_UPDATED = datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
 
-IS_TESTER = True
-IS_USER = False
+IS_TESTER = False
+IS_USER = True
 #
 #True for yay false for nay :)
 
@@ -152,15 +156,16 @@ def cmd_init(args):
     cwd_name = os.path.basename(os.getcwd())
     project_id = input(f"Enter project identifier (default: {cwd_name}): ") or cwd_name
     
+    
     # Register with server (yippee)
     try:
         payload = {"project_id": project_id}
-        r = requests.post(f"{SERVER_URL}/init", json=payload,timeout=15)
+        r = requests.post(f"{get_active_server()}/init", json=payload,timeout=15)
         if r.status_code in [200, 201]:
             config = {
                 "project_id": project_id,
                 "local_version": "0.0",
-                "server": SERVER_URL,
+                "server": get_active_server(),
                 "last_hash": calculate_hash()
             }
             save_config(config)
@@ -172,6 +177,63 @@ def cmd_init(args):
         print("Could not connect to wings-core server. Sad:( ")
 
 def cmd_push(args):
+    config = load_config()
+    if not config:
+        print("❌ Not a wings-core project. Run 'wings-core init' first.>:(")
+        return
+
+    current_ver = config.get("local_version", "0.0")
+    new_version = args.version if args.version else increment_version(current_ver)
+    
+    # 1. Start Logger
+    logger, log_path = get_logger("push_session")
+    logger.info(f"Starting push for {config['project_id']} v{new_version}")
+
+    zip_name = "temp_push_artifact.zip"
+    print(f"📦 Packing version {new_version}...")
+    zip_project(zip_name)
+
+    # 2. Shut down logging temporarily so we can read the files
+    logging.shutdown() 
+
+    try:
+        print(f"🚀 Pushing to {config['server']}...")
+        
+        # --- AUTHENTICATION HEADERS ---
+        headers = {"Authorization": f"Bearer {config.get('token')}"}
+        
+        with open(zip_name, 'rb') as f, open(log_path, 'rb') as l:
+            files = {
+                'file': (f"{new_version}.zip", f),
+                'log': (f"{new_version}.log", l)
+            }
+            data = {'project_id': config['project_id'], 'version': new_version}
+            
+            # Send the request with headers, data, and files all together
+            r = requests.post(
+                f"{config['server']}/push", 
+                data=data, 
+                files=files, 
+                headers=headers, 
+                timeout=30
+            )
+        
+        if r.status_code == 200:
+            config['local_version'] = new_version
+            config['last_hash'] = calculate_hash()
+            save_config(config)
+            print(f"✅ Successfully pushed version {new_version}! YOOO LETS GOO")
+        elif r.status_code == 403:
+            print("❌ Unauthorized! Please run 'wings-core login' first.")
+        else:
+            print(f"❌ Failed to push: {r.text}")
+            
+    except Exception as e:
+        print(f"❌ Error during push: {e}")
+    finally:
+        # Clean up the temp file
+        if os.path.exists(zip_name):
+            os.remove(zip_name)
     config = load_config()
     if not config:
         print("❌ Not a wings-core project. Run 'wings-core init' first.>:(")
@@ -210,8 +272,8 @@ def cmd_push(args):
             }
             data = {'project_id': config['project_id'], 'version': new_version}
             
-            r = requests.post(f"{config['server']}/push", data=data, files=files, timeout=30)
-        
+          
+          
         if r.status_code == 200:
             config['local_version'] = new_version
             config['last_hash'] = calculate_hash()
@@ -308,7 +370,17 @@ def cmd_pull(args):
         if target_version:
             params['version'] = target_version
             
-        r = requests.get(f"{config['server']}/pull", params=params, stream=True, timeout=10)
+        headers = {"Authorization": f"Bearer {config.get('token')}"}
+        r = requests.post(f"{config['server']}/delete", 
+                         json={'project_id': project_id}, 
+                         headers=headers, 
+                         timeout=15)
+        
+        if r.status_code != 200:
+            print(f"Failed to delete project: {r.text}")
+            return
+        
+        r = requests.get(f"{config['server']}/pull", params=params, headers=headers, stream=True, timeout=10)
         
         if r.status_code == 200:
             zip_name = "temp_pull.zip"
@@ -378,7 +450,11 @@ def cmd_list(args):
         return
     
     try:
-        r = requests.get(f"{config['server']}/list", timeout=10, params={'project_id': config['project_id']})
+        headers = {"Authorization": f"Bearer {config.get('token')}"}
+        r = requests.get(f"{config['server']}/list", 
+                         params={'project_id': config['project_id']}, 
+                         headers=headers, 
+                         timeout=15)
         if r.status_code == 200:
             versions = r.json().get('versions', [])
             print("Available versions on server:")
@@ -405,7 +481,7 @@ def cmd_verify(args):
 
 def cmd_ping(args):
     try:
-        r = requests.get(f"{SERVER_URL}/ping", timeout=5)
+        r = requests.get(f"{get_active_server()}/ping", timeout=5)
         if r.status_code == 200:
             print("Pong! Server is reachable.") #Awh:(
         else:
@@ -547,7 +623,12 @@ def cmd_delete_remote(args):
     
     if verify == project_id:
         try:
-            r = requests.post(f"{config['server']}/delete", json={'project_id': project_id}, timeout=15)
+            headers = {"Authorization": f"Bearer {config.get('token')}"}
+            r = requests.post(f"{config['server']}/delete", 
+                             json={'project_id': project_id}, 
+                             headers=headers, 
+                             timeout=15)
+            
             if r.status_code == 200:
                 print(f"✅ Server Response: {r.text}")
                 print("Remote data wiped. You may want to run 'wings-core terminate' locally now. Adios!")
@@ -648,16 +729,13 @@ def main():
     elif args.command == 'delete-remote': cmd_delete_remote(args)
     else: parser.print_help()
     
+
 #Run 
 if __name__ == "__main__":
-    main()
-
     try:
         main()
     except KeyboardInterrupt:
         print("\n\n🛑 Operation cancelled by user. Exiting...")
-
         if os.path.exists("temp_push_artifact.zip"):
             os.remove("temp_push_artifact.zip")
-            print("Exit successful!")
         sys.exit(0)
