@@ -108,20 +108,28 @@ def zip_project(output_filename):
 
 def get_logger(session_name="wings"):
     log_dir = os.path.join(CONFIG_DIR, "logs")
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    log_file = os.path.join(log_dir, f"{session_name}.log")
-    
-    # Configure logging ooh!
-    logging.basicConfig(
-        filename=log_file,
-        filemode='w', # Overwrite for the current session
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        level=logging.INFO
-    )
-    return logging.getLogger(), log_file
+    os.makedirs(log_dir, exist_ok=True)
 
+    log_file = os.path.join(log_dir, f"{session_name}.log")
+
+    logger = logging.getLogger(session_name)
+    logger.setLevel(logging.DEBUG)
+
+    # Prevent duplicate handlers
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s'
+    )
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+
+    return logger, log_file
 
 
 def increment_version(current_ver):
@@ -179,116 +187,79 @@ def cmd_init(args):
 def cmd_push(args):
     config = load_config()
     if not config:
-        print("❌ Not a wings-core project. Run 'wings-core init' first.>:(")
+        print("❌ Not a wings-core project.")
         return
 
     current_ver = config.get("local_version", "0.0")
     new_version = args.version if args.version else increment_version(current_ver)
-    
-    # 1. Start Logger
+
     logger, log_path = get_logger("push_session")
-    logger.info(f"Starting push for {config['project_id']} v{new_version}")
+
+    logger.info("==== PUSH SESSION STARTED ====")
+    logger.info(f"Project ID: {config['project_id']}")
+    logger.info(f"Local Version: {current_ver}")
+    logger.info(f"New Version: {new_version}")
+    logger.info(f"Server: {config['server']}")
+    logger.info(f"User: {getpass.getuser()}")
 
     zip_name = "temp_push_artifact.zip"
-    print(f"📦 Packing version {new_version}...")
-    zip_project(zip_name)
-
-    # 2. Shut down logging temporarily so we can read the files
-    logging.shutdown() 
 
     try:
-        print(f"🚀 Pushing to {config['server']}...")
-        
-        # --- AUTHENTICATION HEADERS ---
+        logger.info("Zipping project...")
+        zip_project(zip_name)
+        logger.info("Zip completed successfully.")
+
+        logger.info("Calculating hash...")
+        current_hash = calculate_hash()
+        logger.info(f"Current Hash: {current_hash}")
+
         headers = {"Authorization": f"Bearer {config.get('token')}"}
-        
-        with open(zip_name, 'rb') as f, open(log_path, 'rb') as l:
+
+        logger.info("Opening files for upload...")
+
+        with open(zip_name, 'rb') as f:
             files = {
-                'file': (f"{new_version}.zip", f),
-                'log': (f"{new_version}.log", l)
+                'file': (f"{new_version}.zip", f)
             }
-            data = {'project_id': config['project_id'], 'version': new_version}
-            
-            # Send the request with headers, data, and files all together
+            data = {
+                'project_id': config['project_id'],
+                'version': new_version
+            }
+
+            logger.info("Sending POST request to server...")
             r = requests.post(
-                f"{config['server']}/push", 
-                data=data, 
-                files=files, 
-                headers=headers, 
+                f"{config['server']}/push",
+                data=data,
+                files=files,
+                headers=headers,
                 timeout=30
             )
-        
+
+        logger.info(f"Server Response Code: {r.status_code}")
+        logger.info(f"Server Response Text: {r.text}")
+
         if r.status_code == 200:
             config['local_version'] = new_version
-            config['last_hash'] = calculate_hash()
+            config['last_hash'] = current_hash
             save_config(config)
-            print(f"✅ Successfully pushed version {new_version}! YOOO LETS GOO")
-        elif r.status_code == 403:
-            print("❌ Unauthorized! Please run 'wings-core login' first.")
+
+            logger.info("Push successful. Config updated.")
+            print(f"✅ Successfully pushed version {new_version}!")
         else:
+            logger.error("Push failed.")
             print(f"❌ Failed to push: {r.text}")
-            
+
     except Exception as e:
+        logger.exception("Exception occurred during push.")
         print(f"❌ Error during push: {e}")
+
     finally:
-        # Clean up the temp file
         if os.path.exists(zip_name):
             os.remove(zip_name)
-    config = load_config()
-    if not config:
-        print("❌ Not a wings-core project. Run 'wings-core init' first.>:(")
-        return
+            logger.info("Temporary zip file removed.")
 
-    current_ver = config.get("local_version", "0.0")
-    new_version = args.version if args.version else increment_version(current_ver)
-    
-# Inside the try block of cmd_push
-    headers = {"Authorization": f"Bearer {config.get('token')}"}
-    
-    r = requests.post(f"{config['server']}/push", 
-                     data=data, 
-                     files=files, 
-                     headers=headers, # Pass the token!
-                     timeout=30)
-
-    # 1. Start Logger
-    logger, log_path = get_logger("push_session")
-    logger.info(f"Starting push for {config['project_id']} v{new_version}")
-
-    zip_name = "temp_push_artifact.zip"
-    print(f"📦 Packing version {new_version}...")
-    zip_project(zip_name)
-
-    # 2. Shut down logging temporarily so we can read the file to send it
-    # This prevents the "Permission Denied" error on Windows(WINDOWS IS SO ANNOYINGGG RAHHH)
-    logging.shutdown() 
-
-    try:
-        print(f"🚀 Pushing to {config['server']}...")
-        with open(zip_name, 'rb') as f, open(log_path, 'rb') as l:
-            files = {
-                'file': (f"{new_version}.zip", f),
-                'log': (f"{new_version}.log", l)
-            }
-            data = {'project_id': config['project_id'], 'version': new_version}
-            
-          
-          
-        if r.status_code == 200:
-            config['local_version'] = new_version
-            config['last_hash'] = calculate_hash()
-            save_config(config)
-            print(f"✅ Successfully pushed version {new_version}! YOOO LETS GOO")
-        else:
-            print(f"❌ Failed to push: {r.text}")
-            
-    except Exception as e:
-        print(f"❌ Error during push: {e}")
-    finally:
-        # Clean up the temp file
-        if os.path.exists(zip_name):
-            os.remove(zip_name)
-
+        logger.info("==== PUSH SESSION ENDED ====")
+        logging.shutdown()
 
 
 def cmd_whoami(args):
