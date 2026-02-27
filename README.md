@@ -111,14 +111,13 @@ The server acts as the single source of truth — no third-party services involv
 
 ## Current status
 
-🚧 **Getting ready for release.**
+🚧 **V1 RELEASE. THINKING FOR V2.**
 
-Initial goals for V1:
+Initial goals for V2:
 
-* Snapshot-based push & pull
-* Version numbering
-* Hash verification
-* Token-based authentication
+* Cross device file transfer.
+* Redundant file transfer
+* Make an app to send around file for both mobile and PC
 
 ---
 
