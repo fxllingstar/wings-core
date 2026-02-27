@@ -51,7 +51,16 @@ try:
 except importlib.metadata.PackageNotFoundError:
     APP_VERSION = "1.0.0-release" # Fallback version if not installed properly
 
-last_mod_time = os.path.getmtime(__file__)
+if getattr(sys, 'frozen', False):
+    # If running as an EXE, get the time of the EXE file itself
+    last_mod_time = os.path.getmtime(sys.executable)
+else:
+    # If running as a script, get the time of the .py file
+    try:
+        last_mod_time = os.path.getmtime(__file__)
+    except FileNotFoundError:
+        last_mod_time = 0 # Fallback
+
 LAST_UPDATED = datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
 
 IS_TESTER = False
