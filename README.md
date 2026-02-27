@@ -12,11 +12,6 @@ wings-core is licensed under the GNU Affero General Public License v3.0.
 If you run a modified version of this software as a service, you must provide access to the source code of your modifications.
 Read the License file here: https://github.com/fxllingstar/wings-core/blob/main/LICENSE
 
-**ALSO IMPORTANT.**
-
-CLI: Install via pip (or the release file).
-Server: Clone the repo and run from the /server directory.
-
 ---
 
 ## What it does
@@ -78,6 +73,7 @@ Using Python Directly
 1. Navigate to the server folder.
 2. Install dependencies: pip install -r requirements.txt
 3. Start the server: python server.py
+OR USE THE server.exe FILE FOR THE SERVER. I DO NOT GUARENTEE THE WORKABILITY
 
 
 Using the CLI (The Frontend)
@@ -85,21 +81,9 @@ Once your server is up, you can use the wings-core tool to manage your files.
 
 Installation
 
-pip install .
-
-Initial Setup
-
-Go to your project folder and run:
-
-
-# 1. Start a new project
-wings-core init
-
-# 2. Point to your personal server
-wings-core set-server http://your-server-ip:5000
-
-# 3. Log in (Default: admin / wings)
-wings-core login
+1. Run the install.bat file AS ADMINISTRATOR.
+2. Then wait for the script to conclude.
+3. You are done! Write wings-core --version in an powershell or terminal <3
 
 
 ## Core components
