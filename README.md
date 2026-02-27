@@ -119,23 +119,10 @@ A long-running service that:
 
 The server acts as the single source of truth — no third-party services involved.
 
----
-## Project structure (planned)
-
-```
-wings-core/
-├── cli/            # maksii command-line tool
-├── server/         # server daemon
-├── protocol/       # protocol specifications
-├── docs/           # architecture & design docs
-└── README.md
-```
-
----
 
 ## Current status
 
-🚧 **Early development / V1 planning**
+🚧 **Getting ready for release.**
 
 Initial goals for V1:
 
