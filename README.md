@@ -81,9 +81,15 @@ Once your server is up, you can use the wings-core tool to manage your files.
 
 Installation
 
-1. Run the install.bat file AS ADMINISTRATOR.
-2. Then wait for the script to conclude.
-3. You are done! Write wings-core --version in an powershell or terminal <3
+1. Download both files (exe and bat)
+
+2.Put both of the files in the same folder
+
+3. Run the .bat file as ADMINISTRATOR
+
+4. Then wait for the script to conclude.
+
+5. You are done! Write wings-core --version in an powershell or terminal <3
 
 
 ## Core components
