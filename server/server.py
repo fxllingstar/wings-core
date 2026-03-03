@@ -31,12 +31,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-
+SERVER_CONFIG_FILE = "server_config.json"
 ADMIN_TOKEN = os.getenv("WINGS_ADMIN_TOKEN")
 PORT = int(os.getenv("WINGS_SERVER_PORT", 5000)) # 5000 is the fallback
 DEBUG = os.getenv("DEBUG_MODE") == "True"
 USERS_FILE = "users.json"
-TOKENS = {}  # in-memory token storage
+TOKENS = {}  
+
+
 
 def require_auth():
     auth_header = request.headers.get("Authorization")
@@ -126,6 +128,62 @@ def init_project():
         })
         return jsonify({"message": "Project initialized on server."}), 201
     return jsonify({"message": "Project already exists."}), 200
+
+
+
+
+def load_server_config():
+    if not os.path.exists(SERVER_CONFIG_FILE):
+        return {}
+    with open(SERVER_CONFIG_FILE, "r") as f:
+        return json.load(f)
+
+def save_server_config(config):
+    with open(SERVER_CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=4)
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    server_pass = data.get("server_password") # The new global lock
+
+    if not username or not password:
+        return jsonify({"error": "Missing credentials"}), 400
+
+    server_cfg = load_server_config()
+    users = load_users()
+    pass_hash = hash_password(password)
+
+    # --- LEVEL 2: Global Server Password Logic ---
+    if not server_cfg.get("global_password_hash"):
+        # First person ever to login sets the server password!
+        if not server_pass:
+            return jsonify({"error": "First-time setup: Please provide a Server Access Password"}), 400
+        server_cfg["global_password_hash"] = hash_password(server_pass)
+        save_server_config(server_cfg)
+    else:
+        # Verify the global lock
+        if hash_password(server_pass) != server_cfg["global_password_hash"]:
+            return jsonify({"error": "Invalid Server Access Password. You cannot access the data. HAHA"}), 403
+
+    # --- LEVEL 1: Personal User Logic ---
+    if username not in users:
+        users[username] = pass_hash
+        save_users(users)
+    elif users[username] != pass_hash:
+        return jsonify({"error": "Invalid personal password. NUH UH"}), 401
+
+    # If we got here, both locks are open!
+    token = secrets.token_hex(32)
+    TOKENS[token] = username
+    return jsonify({"token": token, "message": "Authenticated successfully! NICEE"}), 200
+
+
+
+
+
 
 @app.route('/push', methods=['POST'])
 def push():
