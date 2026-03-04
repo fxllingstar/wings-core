@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wings-core"
+version = "1.0.0"
+dependencies = [
+    "requests",
+    "python-dotenv",
+]
+
+[project.scripts]
+wings-core = "wings_core:main"
