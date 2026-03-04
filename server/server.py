@@ -18,6 +18,7 @@
 
 
 
+import datetime
 import os
 import json
 import shutil
@@ -214,6 +215,11 @@ def push():
     if version not in meta['versions']:
         meta['versions'].append(version)
     meta['latest_version'] = version
+    meta['last_author'] = TOKENS.get(request.headers.get('Authorization'), 'Unknown')
+    meta['timestamp'] = datetime.now().isoformat()
+    save_project_meta(project_id, meta)
+
+    
     save_project_meta(project_id, meta)
 
     
