@@ -45,3 +45,15 @@ gsap.from(".commandslist", {
     opacity: 0,
     duration: 1.5
 });
+
+
+gsap.from(".downloadpage", {
+    scrollTrigger: {
+        trigger: ".downloadpage",
+        start: "top 80%",
+    },
+    y: 100,
+    opacity: 0,
+    duration: 1.5,
+    ease: "power4.out"
+});
