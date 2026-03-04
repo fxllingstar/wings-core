@@ -175,53 +175,62 @@ def cmd_init(args):
         print("Wings-core is already initialized here. HAHAHA")
         return
 
+    # 1. Setup Basic Info
     cwd_name = os.path.basename(os.getcwd())
     project_id = input(f"Enter project identifier (default: {cwd_name}): ") or cwd_name
+    server_url = get_active_server() # Get the URL before we have a config file
 
-    print("🔐 Authentication Required")
-    username = input("Username: ")
-    password = getpass.getpass("Password: ")
+    print("\n🔑 Wings-Core Double-Lock Authentication")
+    username = input("Personal Username: ")
+    password = getpass.getpass("Personal Password: ")
+    
+    print("  Server Access Password (You are setting it up,if you are the first user on the server):")
+    server_password = getpass.getpass("Password: ")
 
     try:
-        # Step 1: Login
+        # 2. Authenticate First
+        print("Connecting to server...")
         login_response = requests.post(
-            f"{get_active_server()}/login",
-            json={"username": username, "password": password},
+            f"{server_url}/login",
+            json={
+                "username": username, 
+                "password": password,
+                "server_password": server_password
+            },
             timeout=10
         )
 
         if login_response.status_code != 200:
-            print("❌ Authentication failed.")
+            error = login_response.json().get('error', 'Unknown error, figure it out man -_-')
+            print(f"❌ Access Denied: {error}")
             return
 
         token = login_response.json().get("token")
-        if not token:
-            print("❌ Invalid login response.")
-            return
 
-        # Step 2: Register project
+        # 3. Register the Project (Now that we are authenticated)
+        # We need to send the token here too because /init might be protected!
         r = requests.post(
-            f"{get_active_server()}/init",
+            f"{server_url}/init",
             json={"project_id": project_id},
+            headers={"Authorization": f"Bearer {token}"}, 
             timeout=15
         )
 
         if r.status_code in [200, 201]:
-            config = {
+            # 4. Save the Config locally
+            config_data = {
                 "project_id": project_id,
                 "local_version": "0.0",
-                "server": get_active_server(),
+                "server": server_url,
                 "last_hash": calculate_hash(),
                 "token": token
             }
+            save_config(config_data)
 
-            save_config(config)
-
-            print(f" Project initialized and authenticated. YAYYY")
+            print(f"\n✅ Project initialized and authenticated. YAYYY")
             print(f"Project Identifier: {project_id}")
-
         else:
-            print(f"Server error: {r.text}")
+            print(f"❌ Server error during project registration: {r.text}")
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Connection error: {e} AWH:(")
