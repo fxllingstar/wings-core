@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #Imports
 import difflib
 import getpass
@@ -30,63 +29,100 @@ import hashlib
 import importlib.metadata
 from datetime import datetime
 
-
-
 # --- Configuration --- ooh shiny
 DEFAULT_SERVER = "http://127.0.0.1:5000"  # Fallback if no server is set
 CONFIG_DIR = ".wings"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 IGNORE_DIRS = {'.wings', '__pycache__', '.git', 'node_modules', '.venv'} # Added a few more common ignores
+LOG_FILE_PATH = ""
+
+# --- Global Logger Setup ---
+def setup_logger():
+    global LOG_FILE_PATH
+    log_dir = os.path.join(CONFIG_DIR, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    LOG_FILE_PATH = os.path.join(log_dir, "wings_core.log")
+
+    logger = logging.getLogger("wings")
+    logger.setLevel(logging.DEBUG)
+
+    if not logger.handlers:
+        file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    return logger
+
+logger = setup_logger()
 
 def get_active_server():
     """Returns the server URL from config, or the default if not found."""
+    logger.debug("Retrieving active server from config.")
     config = load_config()
     if config and config.get('server'):
-        return config.get('server').rstrip('/')
+        server = config.get('server').rstrip('/')
+        logger.debug(f"Found active server: {server}")
+        return server
+    logger.debug(f"No server in config. Falling back to default: {DEFAULT_SERVER}")
     return DEFAULT_SERVER
+
 # --- App Info ---  Yes is tester is hard coded, sue me>:( 
 try:
-    # Note: Use the name as defined in your setup.py (usually 'wings-core')
     APP_VERSION = importlib.metadata.version("wings-core")
 except importlib.metadata.PackageNotFoundError:
     APP_VERSION = "1.0.0-release" # Fallback version if not installed properly
 
 if getattr(sys, 'frozen', False):
-    # If running as an EXE, get the time of the EXE file itself
     last_mod_time = os.path.getmtime(sys.executable)
 else:
-    # If running as a script, get the time of the .py file
     try:
         last_mod_time = os.path.getmtime(__file__)
     except FileNotFoundError:
-        last_mod_time = 0 # Fallback
+        last_mod_time = 0 
 
 LAST_UPDATED = datetime.fromtimestamp(last_mod_time).strftime('%m/%d/%Y')
 
 IS_TESTER = False
 IS_USER = True
-#
-#True for yay false for nay :)
-def get_auth_headers(config):
-    token = config.get("token")
-    if not token:
-        raise PermissionError("Not authenticated. Run init first.")
-    return {"Authorization": f"Bearer {token}"}
+
+def get_auth_headers(config, require_auth=False):
+    logger.debug("Generating auth headers.")
+    token = config.get('token')
+
+    if require_auth and not token:
+        logger.error("Authentication required but no token found.")
+        raise PermissionError("You are not logged in. Run 'wings-core login' first.")
+
+    if token:
+        logger.debug("Token found, adding to headers.")
+        return {"Authorization": f"Bearer {token}"}
+
+    logger.debug("No token found, returning empty headers.")
+    return {}
 
 def load_config():
+    logger.debug(f"Attempting to load config from {CONFIG_FILE}")
     if not os.path.exists(CONFIG_FILE):
+        logger.debug("Config file does not exist.")
         return None
     with open(CONFIG_FILE, 'r') as f:
-        return json.load(f)
+        config = json.load(f)
+        logger.debug("Config loaded successfully.")
+        return config
 
 def save_config(data):
+    logger.debug("Saving configuration.")
     if not os.path.exists(CONFIG_DIR):
+        logger.debug(f"Creating config directory: {CONFIG_DIR}")
         os.makedirs(CONFIG_DIR)
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
+    logger.info("Configuration saved successfully.")
 
 def calculate_hash():
     """Calculates a simple hash of the current directory state for verification."""
+    logger.debug("Calculating directory state hash.")
     sha = hashlib.sha256()
     warned = False
 
@@ -102,68 +138,53 @@ def calculate_hash():
             except OSError as e:
                 if not warned:
                     print("⚠ Warning: Some files could not be read during hashing.")
+                    logger.warning(f"File read error during hashing: {e}")
                     warned = True
 
-    return sha.hexdigest()
+    final_hash = sha.hexdigest()
+    logger.debug(f"Directory hash calculated: {final_hash}")
+    return final_hash
 
 def zip_project(output_filename):
     """Zips the current directory excluding IGNORE_DIRS."""
+    logger.info(f"Zipping project to {output_filename}")
     with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk('.'):
-            # Filter ignored directories
             dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
 
             for file in files:
                 filepath = os.path.join(root, file)
                 arcname = os.path.relpath(filepath, '.')
+                logger.debug(f"Adding {filepath} to zip as {arcname}")
                 zipf.write(filepath, arcname)
 
+    logger.info("Project zipped successfully.")
     return output_filename
-
-def get_logger(session_name="wings"):
-    log_dir = os.path.join(CONFIG_DIR, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-
-    log_file = os.path.join(log_dir, f"{session_name}.log")
-
-    logger = logging.getLogger(session_name)
-    logger.setLevel(logging.DEBUG)
-
-    # Prevent duplicate handlers
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    file_handler = logging.FileHandler(log_file, mode='w')
-    file_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s'
-    )
-    file_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
-
-    return logger, log_file
-
 
 def increment_version(current_ver):
     """Handles logic: 1.0 -> 1.1 ... 1.9 -> 2.0"""
+    logger.debug(f"Incrementing version from {current_ver}")
     try:
         major, minor = map(int, current_ver.split('.'))
         minor += 1
         if minor >= 10:
             major += 1
             minor = 0
-        return f"{major}.{minor}"
+        new_ver = f"{major}.{minor}"
+        logger.debug(f"New version: {new_ver}")
+        return new_ver
     except ValueError:
-        return current_ver # Fallback if version string is custom 
+        logger.warning(f"Could not parse version '{current_ver}', returning as is.")
+        return current_ver
 
 # --- Commands ---
 
 def cmd_hello():
+    logger.info("Executed cmd_hello")
     print("Hello! This is wings-core.")
 
 def cmd_version(args):
+    logger.info(f"Executed cmd_version. Detailed: {args.detailed}")
     if args.detailed:
         tester = "Yay" if IS_TESTER else "Nay"
         print(f"Version {APP_VERSION}, Last updated : {LAST_UPDATED}, Tester version : {tester}")
@@ -171,44 +192,40 @@ def cmd_version(args):
         print(f"Version: {APP_VERSION}")
 
 def cmd_init(args):
+    logger.info("Executed cmd_init")
     if os.path.exists(CONFIG_FILE):
+        logger.warning("Attempted to init an already initialized project.")
         print("Wings-core is already initialized here. HAHAHA")
         return
 
-    # 1. Setup Basic Info
     cwd_name = os.path.basename(os.getcwd())
     project_id = input(f"Enter project identifier (default: {cwd_name}): ") or cwd_name
-    server_url = get_active_server() # Get the URL before we have a config file
+    server_url = get_active_server()
 
     print("\n🔑 Wings-Core Double-Lock Authentication")
     username = input("Personal Username: ")
     password = getpass.getpass("Personal Password: ")
-    
     print("  Server Access Password (You are setting it up,if you are the first user on the server):")
     server_password = getpass.getpass("Password: ")
 
     try:
-        # 2. Authenticate First
+        logger.info(f"Connecting to server {server_url} for initialization login.")
         print("Connecting to server...")
         login_response = requests.post(
             f"{server_url}/login",
-            json={
-                "username": username, 
-                "password": password,
-                "server_password": server_password
-            },
+            json={"username": username, "password": password, "server_password": server_password},
             timeout=10
         )
 
         if login_response.status_code != 200:
             error = login_response.json().get('error', 'Unknown error, figure it out man -_-')
+            logger.error(f"Login failed during init: {error}")
             print(f"❌ Access Denied: {error}")
             return
 
         token = login_response.json().get("token")
+        logger.info("Login successful, registering project.")
 
-        # 3. Register the Project (Now that we are authenticated)
-        # We need to send the token here too because /init might be protected!
         r = requests.post(
             f"{server_url}/init",
             json={"project_id": project_id},
@@ -217,7 +234,6 @@ def cmd_init(args):
         )
 
         if r.status_code in [200, 201]:
-            # 4. Save the Config locally
             config_data = {
                 "project_id": project_id,
                 "local_version": "0.0",
@@ -226,76 +242,64 @@ def cmd_init(args):
                 "token": token
             }
             save_config(config_data)
-
+            logger.info(f"Project initialized successfully with ID: {project_id}")
             print(f"\n✅ Project initialized and authenticated. YAYYY")
             print(f"Project Identifier: {project_id}")
         else:
+            logger.error(f"Server error during registration: {r.text}")
             print(f"❌ Server error during project registration: {r.text}")
 
     except requests.exceptions.RequestException as e:
+        logger.exception("Connection error during init.")
         print(f"❌ Connection error: {e} AWH:(")
-
-def get_auth_headers(config, require_auth=False):
-    token = config.get('token')
-
-    if require_auth and not token:
-        raise PermissionError("You are not logged in. Run 'wings-core login' first.")
-
-    if token:
-        return {"Authorization": f"Bearer {token}"}
-
-    return {}
 
 
 def cmd_push(args):
+    logger.info("Executed cmd_push")
     config = load_config()
     
     if not config:
+        logger.error("Push aborted: Not a wings-core project.")
         print("❌ Not a wings-core project.")
         return
 
     current_ver = config.get("local_version", "0.0")
     new_version = args.version if args.version else increment_version(current_ver)
 
-    logger, log_path = get_logger("push_session")
-
     logger.info("==== PUSH SESSION STARTED ====")
     logger.info(f"Project ID: {config['project_id']}")
     logger.info(f"Local Version: {current_ver}")
     logger.info(f"New Version: {new_version}")
-    logger.info(f"Server: {config['server']}")
-    logger.info(f"User: {getpass.getuser()}")
-
+    
     zip_name = "temp_push_artifact.zip"
 
     try:
-        logger.info("Zipping project...")
         zip_project(zip_name)
-        logger.info("Zip completed successfully.")
-
-        logger.info("Calculating hash...")
         current_hash = calculate_hash()
-        logger.info(f"Current Hash: {current_hash}")
-
+        
         try:
-             headers = get_auth_headers(config)
+             headers = get_auth_headers(config, require_auth=True)
         except PermissionError as e:
+            logger.error(f"Push aborted: {e}")
             print(f"❌ {e}")
-            logger.error("Push aborted: user not authenticated.")
             return
 
-        logger.info("Opening files for upload...")
+        # Flush the logger so all current log entries are written to the file before sending
+        for handler in logger.handlers:
+            handler.flush()
 
-        with open(zip_name, 'rb') as f:
+        logger.info("Opening files for upload (including log)...")
+        with open(zip_name, 'rb') as f, open(LOG_FILE_PATH, 'rb') as log_f:
             files = {
-                'file': (f"{new_version}.zip", f)
+                'file': (f"{new_version}.zip", f),
+                'log_file': (f"wings_push_{new_version}.log", log_f)
             }
             data = {
                 'project_id': config['project_id'],
                 'version': new_version
             }
 
-            logger.info("Sending POST request to server...")
+            logger.info(f"Sending POST request to {config['server']}/push")
             r = requests.post(
                 f"{config['server']}/push",
                 data=data,
@@ -305,20 +309,18 @@ def cmd_push(args):
             )
 
         logger.info(f"Server Response Code: {r.status_code}")
-        logger.info(f"Server Response Text: {r.text}")
-
+        
         if r.status_code == 200:
             config['local_version'] = new_version
             config['last_hash'] = current_hash
             save_config(config)
-
             logger.info("Push successful. Config updated.")
             print(f"✅ Successfully pushed version {new_version}!")
         elif r.status_code == 403:
             logger.warning("Server rejected authentication (403).")
             print("❌ Unauthorized! Please run 'wings-core login' first.")
         else:
-            logger.error("Push failed.")
+            logger.error(f"Push failed: {r.text}")
             print(f"❌ Failed to push: {r.text}")
 
     except Exception as e:
@@ -328,48 +330,43 @@ def cmd_push(args):
     finally:
         if os.path.exists(zip_name):
             os.remove(zip_name)
-            logger.info("Temporary zip file removed.")
-
+            logger.debug("Temporary zip file removed.")
         logger.info("==== PUSH SESSION ENDED ====")
-        logging.shutdown()
 
 
 def cmd_whoami(args):
+    logger.info("Executed cmd_whoami")
     config = load_config()
     current_user = getpass.getuser()
     
-    # 1. Identity Header
     print("\n" + "═" * 30)
     print(f"WINGS-CORE IDENTITY")
     print("═" * 30)
-    
-    # 2. User Info
     print(f"Current User   : {current_user}")
     
-    # 3. Connection Info
     if config:
         print(f"Connected To   : {config.get('server', 'Not set')}")
         print(f"Project ID     : {config.get('project_id', 'None')}")
-        
-        # 4. Token Status (Future-proofed)
         token = config.get('token')
         if token:
-            # We hide the full token for security, showing only the first 4 chars
             masked_token = f"{token[:4]}****" 
             print(f"Token Status   : ✅ Active ({masked_token})")
+            logger.debug("whoami: Token is active.")
         else:
             print(f"Token Status   : ❌ No Token (Not Authenticated)")
+            logger.debug("whoami: No token found.")
     else:
         print(f"Server Status  : ⚠️  Not in a wings project folder.")
         print(f"Token Status   : N/A")
+        logger.warning("whoami executed outside a tracked project.")
     
     print("═" * 30 + "\n")
 
-
-
 def cmd_logs(args):
+    logger.info("Executed cmd_logs")
     config = load_config()
     if not config:
+        logger.error("cmd_logs aborted: Not a project.")
         print("❌ Not a wings-core project.")
         return
 
@@ -378,27 +375,32 @@ def cmd_logs(args):
 
     try:
         params = {'project_id': config['project_id'], 'version': version}
+        logger.debug(f"Requesting logs from {config['server']}/logs")
         r = requests.get(f"{config['server']}/logs", params=params, timeout=10)
 
         if r.status_code == 200:
+            logger.info("Logs fetched successfully.")
             print("\n--- SERVER LOG START ---")
             print(r.text)
             print("--- SERVER LOG END ---\n")
         else:
+            logger.error(f"Failed to fetch logs: {r.text}")
             print(f"❌ Could not find logs for this version: {r.text}")
     except Exception as e:
+        logger.exception("Error fetching logs.")
         print(f"❌ Error fetching logs: {e}")
 
-
-
 def cmd_pull(args):
+    logger.info("Executed cmd_pull")
     config = load_config()
     if not config:
+        logger.error("cmd_pull aborted: Not a project.")
         print("Not a wings-core project. INIT FIRST HUMAN >:(")
         return
     
     current_hash = calculate_hash()
     if current_hash != config.get('last_hash'):
+        logger.warning("Pull aborted due to local changes.")
         print("❌ Pull aborted: You have local changes.")
         print("Run 'wings-core push' or restore your files before pulling. Safety First!")
         return
@@ -416,18 +418,22 @@ def cmd_pull(args):
         try:
             headers = get_auth_headers(config, require_auth=True)
         except PermissionError as e:
+            logger.error(f"Pull aborted: {e}")
             print(f"❌ {e}")
             return
 
+        logger.info("Clearing out project files to prepare for pull.")
         r = requests.post(f"{config['server']}/delete", 
                          json={'project_id': project_id}, 
                          headers=headers, 
                          timeout=15)
         
         if r.status_code != 200:
+            logger.error(f"Failed to prep project deletion: {r.text}")
             print(f"Failed to delete project: {r.text}")
             return
         
+        logger.info(f"Downloading pull artifact from server.")
         r = requests.get(f"{config['server']}/pull", params=params, headers=headers, stream=True, timeout=10)
         
         if r.status_code == 200:
@@ -436,6 +442,7 @@ def cmd_pull(args):
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
             
+            logger.info("Unpacking pulled artifact.")
             shutil.unpack_archive(zip_name, '.')
             os.remove(zip_name)
             
@@ -445,31 +452,35 @@ def cmd_pull(args):
                 config['local_version'] = target_version if target_version else remote_ver
                 config['last_hash'] = calculate_hash()
                 save_config(config)
-            
+                logger.info(f"Pull complete. Synced to version {config['local_version']}")
             print("Pull complete. OOHH SHINY NEW FILES")
         else:
+            logger.error(f"Pull request failed: {r.text}")
             print(f"Failed to pull: {r.text}, Awh:( no shiny new files")
     except Exception as e:
+        logger.exception("Error during pull.")
         print(f"Error: {e}")
 
 def cmd_status(args):
+    logger.info("Executed cmd_status")
     config = load_config()
     if not config:
+        logger.error("cmd_status aborted: Not a project.")
         print("Not a wings-core project. INIT FIRST >:(")
         return
     
-    # Check remote
     try:
+        logger.debug("Fetching remote status.")
         r = requests.get(
             f"{config['server']}/status", 
             params={'project_id': config['project_id']}, 
             timeout=10
         )
         remote_ver = r.json().get('remote_version', 'Unknown')
-    except (requests.exceptions.RequestException, ValueError):
+    except (requests.exceptions.RequestException, ValueError) as e:
+        logger.warning(f"Could not reach server for status: {e}")
         remote_ver = "Unreachable"
 
-    # Check sync status
     local_ver = config.get('local_version', '0.0')
     current_hash = calculate_hash()
     
@@ -484,16 +495,18 @@ def cmd_status(args):
     elif current_hash != config.get('last_hash'):
         sync_status = "Out of sync (Local changes) Something is not right here too :("
 
+    logger.info(f"Status checked. Local: {local_ver}, Remote: {remote_ver}, Status: {sync_status}")
     print(f"Project: {config['project_id']}")
     print(f"Local version: {local_ver}")
     print(f"Remote version: {remote_ver}")
     print(f"Status: {sync_status}")
     print(f"Total Files: {file_count}")
 
-
 def cmd_list(args):
+    logger.info("Executed cmd_list")
     config = load_config()
     if not config:
+        logger.error("cmd_list aborted: Not a project.")
         print("Not a wings-core project. INIT FIRSTTTT!")
         return
     
@@ -501,26 +514,33 @@ def cmd_list(args):
         try:
             headers = get_auth_headers(config, require_auth=True)
         except PermissionError as e:
+            logger.error(f"List aborted: {e}")
             print(f"❌ {e}")
             return
         
+        logger.debug("Requesting version list from server.")
         r = requests.get(f"{config['server']}/list", 
                          params={'project_id': config['project_id']}, 
                          headers=headers, 
                          timeout=15)
         if r.status_code == 200:
             versions = r.json().get('versions', [])
+            logger.info(f"Fetched {len(versions)} versions from server.")
             print("Available versions on server:")
             for v in versions:
                 print(f" - {v}")
         else:
+            logger.error(f"Failed to fetch version list: {r.text}")
             print("Could not fetch list. :(")
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Server unreachable during list: {e}")
         print("Server unreachable. Awh dang it :(")
 
 def cmd_verify(args):
+    logger.info("Executed cmd_verify")
     config = load_config()
     if not config:
+        logger.error("cmd_verify aborted: Not a project.")
         print("Not a wings-core project.")
         return
     
@@ -528,23 +548,33 @@ def cmd_verify(args):
     stored = config.get('last_hash')
     
     if current == stored:
+        logger.info("Integrity verified: clean state.")
         print("Integrity Verified: Local state matches last known snapshot. Yippee!")
     else:
+        logger.warning("Integrity verified: modifications found.")
         print("Integrity Warning: Local files have changed since last operation. Pay attention plz >:(")
 
 def cmd_ping(args):
+    logger.info("Executed cmd_ping")
     try:
-        r = requests.get(f"{get_active_server()}/ping", timeout=5)
+        server = get_active_server()
+        logger.debug(f"Pinging {server}")
+        r = requests.get(f"{server}/ping", timeout=5)
         if r.status_code == 200:
-            print("Pong! Server is reachable.") #Awh:(
+            logger.info("Ping successful.")
+            print("Pong! Server is reachable.") 
         else:
+            logger.warning(f"Ping responded with status {r.status_code}")
             print(f"Server responded with {r.status_code}")
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ping failed: {e}")
         print("Ping failed. Server is unreachable.")
 
 def cmd_terminate(args):
+    logger.info("Executed cmd_terminate")
     config = load_config()
     if not config:
+        logger.error("Terminate aborted: Not a tracked project.")
         print("This project is currently not tracked by wings-core. Nuh uh")
         return
 
@@ -556,18 +586,24 @@ def cmd_terminate(args):
         try:
             if os.path.exists(CONFIG_DIR):
                 shutil.rmtree(CONFIG_DIR)
+                logger.info(f"Terminated project tracking. '{CONFIG_DIR}' directory removed.")
                 print(f"✅ Success: Tracking terminated. '{config['project_id']}' is now just a regular folder. Byee, wings-core is outa heree")
             else:
+                logger.warning("No metadata folder found during terminate.")
                 print("No metadata folder found, but config was loaded. Clean-up may be required. BRING THE VACUUM CLEANERR")
         except Exception as e:
+            logger.exception("Error during project termination.")
             print(f"❌ Error during termination: {e} Wings-core did not leave :)")
     else:
+        logger.info("Termination aborted by user.")
         print("\n🛡️  Termination aborted. Your project is still being tracked.")
         print("Nothing was deleted. YAY!")
 
 def cmd_login(args):
+    logger.info("Executed cmd_login")
     config = load_config()
     if not config:
+        logger.error("Login aborted: Not a project.")
         print("❌ Please run 'wings-core init' first.")
         return
 
@@ -576,6 +612,7 @@ def cmd_login(args):
     password = getpass.getpass("Password: ")
 
     try:
+        logger.info(f"Attempting login for user: {username}")
         r = requests.post(
             f"{config['server']}/login",
             json={"username": username, "password": password},
@@ -586,17 +623,20 @@ def cmd_login(args):
             try:
                 data = r.json()
             except ValueError:
+                logger.error("Login response contained invalid JSON.")
                 print("❌ Server returned invalid JSON.")
                 return
 
             token = data.get('token')
 
             if not token:
+                logger.error("Login succeeded but no token returned.")
                 print("❌ Login failed: No token received.")
                 return
 
             config['token'] = token
             save_config(config)
+            logger.info("Login successful. Token saved securely.")
             print("✅ Login successful! Token saved securely.")
 
         else:
@@ -604,62 +644,70 @@ def cmd_login(args):
                 error = r.json().get('error', r.text)
             except ValueError:
                 error = r.text
-
+            logger.error(f"Login rejected: {error}")
             print(f"❌ Login failed: {error}")
 
     except requests.exceptions.RequestException as e:
+        logger.exception("Connection error during login.")
         print(f"❌ Could not connect to authentication server: {e}")
 
 def cmd_set_server(args):
+    logger.info("Executed cmd_set_server")
     config = load_config()
     if not config:
+        logger.error("Set-server aborted: Not a project.")
         print("❌ Not a wings-core project.")
         return
 
     new_url = args.url.strip().rstrip("/")
     if not new_url.startswith(("http://", "https://")):
+        logger.warning(f"Invalid server URL format entered: {new_url}")
         print("❌ Invalid URL. Use http:// or https://")
         return
 
     print(f"📡 Verifying server at {new_url}...")
     try:
-        # We try to hit the /ping endpoint we made earlier
+        logger.debug(f"Testing new server url: {new_url}/ping")
         r = requests.get(f"{new_url}/ping", timeout=5)
         if r.status_code == 200 and "wings" in r.text.lower():
             config['server'] = new_url
             save_config(config)
+            logger.info(f"Server updated to {new_url}")
             print(f"✅ Success! Server address updated to {new_url}")
         else:
+            logger.warning("Server responded, but failed verification check.")
             print("⚠️  Warning: The server responded, but it doesn't look like a Wings server.")
             confirm = input("Save anyway? (y/N): ").lower()
             if confirm == 'y':
                 config['server'] = new_url
                 save_config(config)
+                logger.info(f"Server forcefully updated to {new_url} despite warnings.")
                 print("✅ Address saved.")
-    except Exception:
+    except Exception as e:
+        logger.error(f"Server verification failed: {e}")
         print("❌ Could not reach the server. Is it running?")
         print("Address NOT changed.")
 
 def cmd_qotd(args):
-
+    logger.info("Executed cmd_qotd")
     api_key = "T5IPGazplSNa0zshSzXLA54AunEpBaXdGpwaK2pK" 
     url = "https://api.api-ninjas.com/v2/quoteoftheday"
     
     print("Fetching today's message from the oracle...")
     
     try:
-     
+        logger.debug("Requesting quote from API Ninjas.")
         response = requests.get(url, headers={'X-Api-Key': api_key}, timeout=5)
         
         if response.status_code == 200:
             data = response.json()
-            
             quote_obj = data[0] if isinstance(data, list) else data
             
             quote = quote_obj.get('quote')
             author = quote_obj.get('author')
             
             if quote:
+                logger.info("Quote fetched successfully.")
                 print("\n" + "═" * 50)
                 print(f"  TODAY'S WISDOM")
                 print("─" * 50)
@@ -667,33 +715,38 @@ def cmd_qotd(args):
                 print(f"\n  — {author}")
                 print("═" * 50 + "\n")
             else:
+                logger.warning("Quote object missing required fields.")
                 print("The oracle is resting. No quote found in the response. awh:(")
                 
         elif response.status_code == 401:
+            logger.error("QOTD Error: Invalid API Key.")
             print("❌ Error: Invalid API Key. Please verify your key in wings_core.py.")
         else:
+            logger.error(f"Oracle API returned status: {response.status_code}")
             print(f"❌ Oracle is unavailable. (Status: {response.status_code})")
             
     except Exception as e:
+        logger.exception("Failed to reach QOTD api.")
         print(f"❌ The connection to the oracle was lost: {e}")
 
 def cmd_delete_remote(args):
+    logger.info("Executed cmd_delete_remote")
     config = load_config()
     if not config:
+        logger.error("Delete-remote aborted: Not a project.")
         print("❌ Not a wings-core project.")
         return
 
     project_id = config['project_id']
     
-    # Extra-strength confirmation
     print(f"💣 CRITICAL WARNING: This will permanently delete ALL versions of '{project_id}' from the server.")
     print("This action CANNOT be undone. BOOM")
     
-    # Verification challenge
     verify = input(f"Type the project name '{project_id}' to confirm deletion: ")
     
     if verify == project_id:
         try:
+            logger.warning(f"User confirmed destructive remote deletion of project: {project_id}")
             headers = get_auth_headers(config, require_auth=True)
             r = requests.post(f"{config['server']}/delete", 
                              json={'project_id': project_id}, 
@@ -701,20 +754,26 @@ def cmd_delete_remote(args):
                              timeout=15)
             
             if r.status_code == 200:
+                logger.info("Remote deletion successful.")
                 print(f"✅ Server Response: {r.text}")
                 print("Remote data wiped. You may want to run 'wings-core terminate' locally now. Adios!")
             else:
+                logger.error(f"Remote deletion failed: {r.text}")
                 print(f"❌ Failed: {r.text}")
         except PermissionError as e:
+            logger.error(f"Delete-remote auth failed: {e}")
             print(f"❌ {e}")
         except Exception as e:
+            logger.exception("Error connecting to server for remote wipe.")
             print(f"❌ Could not connect to server: {e}")
     else:
+        logger.info("Verification check failed; delete-remote aborted.")
         print("❌ Verification failed. Deletion aborted. Sadlyy")
 
 # --- Main CLI Parser ---
 
 def main():
+    logger.info(f"Wings-Core started with args: {sys.argv}")
     valid_commands = ['init', 'push', 'pull', 'status', 'list', 'verify', 'ping', 'config', 'qotd', 'terminate', 'delete-remote', 'logs', 'whoami', 'login', 'set-server']
 
     if len(sys.argv) > 1:
@@ -725,29 +784,28 @@ def main():
             
             if matches:
                 closest = matches[0]
-                # The Safety Prompt
                 choice = input(f"❓ Unrecognized command '{user_input}'. Did you mean '{closest}'? (y/N): ").lower()
                 
                 if choice == 'y':
+                    logger.info(f"User corrected command {user_input} to {closest}")
                     sys.argv[1] = closest
                 else:
+                    logger.warning("User declined command correction. Exiting.")
                     print("Operation cancelled.")
-                    return # Exit the program early
+                    return 
             else:
+                logger.error(f"Invalid command entered: {user_input}")
                 print(f"❌ '{user_input}' is not a valid wings-core command. Type 'wings-core --help' for a list.")
                 return
             
     parser = argparse.ArgumentParser(description="Wings Core VCS", add_help=False)
    
-
-    # Global flags
     parser.add_argument('-version', action='store_true', help="Simple version")
     parser.add_argument('--version', dest='detailed_version', action='store_true', help="Detailed version")
     parser.add_argument('--help', action='help', help="Show help")
     
     subparsers = parser.add_subparsers(dest='command')
     
-    # Subcommands
     push_parser = subparsers.add_parser('push')
     push_parser.add_argument('-v', dest='version', help="Specify version manually")
     logs_parser = subparsers.add_parser('logs', help="Fetch process logs from the server")
@@ -755,7 +813,6 @@ def main():
     pull_parser = subparsers.add_parser('pull')
     pull_parser.add_argument('-v', dest='version', help="Specify version manually")
     
-
     server_parser = subparsers.add_parser('set-server', help="Change the server URL for this project")
     server_parser.add_argument('url', help="The new server URL (e.g., http://1.2.3.4:5000)")
     subparsers.add_parser('init')
@@ -769,12 +826,10 @@ def main():
     subparsers.add_parser('delete-remote', help="Wipe project data from the server")
     subparsers.add_parser('whoami', help="Show current user and connection info")
 
-
     if len(sys.argv) == 1:
         cmd_hello()
         return
 
-    # Handle odd flag naming conventions requested (wings-core -version)
     if '-version' in sys.argv:
         cmd_version(argparse.Namespace(detailed=False))
         return
@@ -783,7 +838,6 @@ def main():
         return
     
     args = parser.parse_args()
-
 
     if args.command == 'init': cmd_init(args)
     elif args.command == 'push': cmd_push(args)
@@ -801,13 +855,13 @@ def main():
     elif args.command == 'terminate': cmd_terminate(args)
     elif args.command == 'delete-remote': cmd_delete_remote(args)
     else: parser.print_help()
-    
 
 #Run 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        logger.warning("Operation cancelled by user (KeyboardInterrupt).")
         print("\n\n🛑 Operation cancelled by user. Exiting...")
         if os.path.exists("temp_push_artifact.zip"):
             os.remove("temp_push_artifact.zip")
