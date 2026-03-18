@@ -265,37 +265,39 @@ def pull():
     else:
         return jsonify({"error": "Version not found"}), 404
 
-
 @app.route('/')
 def browse_files():
     storage = Path(STORAGE_DIR)
-    
+    projects = {}
+
     try:
-        # Only list files, not subdirectories or hidden files
-        files = [
-            f.name for f in storage.iterdir()
-            if f.is_file() and not f.name.startswith('.')
-        ]
+        for project_dir in storage.iterdir():
+            if project_dir.is_dir() and not project_dir.name.startswith('.'):
+                zips = [f.name for f in project_dir.iterdir() if f.suffix == '.zip']
+                projects[project_dir.name] = sorted(zips)
     except FileNotFoundError:
-        files = []
-    
-    return render_template('index.html', files=sorted(files))
+        projects = {}
+
+    return render_template('index.html', projects=projects)
 
 
-@app.route('/download/<filename>')
-def download_web_file(filename):
+@app.route('/download/<project_id>/<filename>')
+def download_web_file(project_id, filename):
     storage = Path(STORAGE_DIR).resolve()
-    target = (storage / filename).resolve()
+    project_dir = (storage / project_id).resolve()
+    target = (project_dir / filename).resolve()
 
-    # Prevent path traversal: ensure the resolved path is inside STORAGE_DIR
-    if not target.is_relative_to(storage):
+    # Prevent path traversal on both levels
+    if not project_dir.is_relative_to(storage):
+        abort(400, description="Invalid project.")
+    
+    if not target.is_relative_to(project_dir):
         abort(400, description="Invalid filename.")
 
     if not target.is_file():
-        abort(404, description=f"File '{filename}' not found.")
+        abort(404, description=f"File '{filename}' not found in project '{project_id}'.")
 
-    return send_from_directory(storage, filename, as_attachment=True)
-
+    return send_from_directory(project_dir, filename, as_attachment=True)
 
 
 
