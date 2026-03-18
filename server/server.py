@@ -24,9 +24,13 @@ import json
 import shutil
 import hashlib
 import secrets
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, abort, send_from_directory, render_template
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from pathlib import Path
+
+
+
 
 # Load the variables from .env into the system
 load_dotenv()
@@ -75,34 +79,6 @@ def save_users(users):
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
-
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-
-    if not username or not password:
-        return jsonify({"error": "Missing credentials"}), 400
-
-    users = load_users()
-    password_hash = hash_password(password)
-
-    # If user doesn't exist → register automatically
-    if username not in users:
-        users[username] = password_hash
-        save_users(users)
-    else:
-        # Validate password
-        if users[username] != password_hash:
-            return jsonify({"error": "Invalid password"}), 401
-
-    # Generate token
-    token = secrets.token_hex(32)
-    TOKENS[token] = username
-
-    return jsonify({"token": token}), 200
 
 
 # Helper: Save project metadata
@@ -215,12 +191,13 @@ def push():
     if version not in meta['versions']:
         meta['versions'].append(version)
     meta['latest_version'] = version
-    meta['last_author'] = TOKENS.get(request.headers.get('Authorization'), 'Unknown')
-    meta['timestamp'] = datetime.now().isoformat()
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+    meta['last_author'] = TOKENS.get(token, 'Unknown')
+    meta['timestamp'] = datetime.datetime.now().isoformat()
     save_project_meta(project_id, meta)
 
     
-    save_project_meta(project_id, meta)
 
     
     return jsonify({"message": f"Version {version} pushed successfully."}), 200
@@ -289,6 +266,40 @@ def pull():
         return send_file(file_path, as_attachment=True)
     else:
         return jsonify({"error": "Version not found"}), 404
+
+
+@app.route('/')
+def browse_files():
+    storage = Path(STORAGE_DIR)
+    
+    try:
+        # Only list files, not subdirectories or hidden files
+        files = [
+            f.name for f in storage.iterdir()
+            if f.is_file() and not f.name.startswith('.')
+        ]
+    except FileNotFoundError:
+        files = []
+    
+    return render_template('index.html', files=sorted(files))
+
+
+@app.route('/download/<filename>')
+def download_web_file(filename):
+    storage = Path(STORAGE_DIR).resolve()
+    target = (storage / filename).resolve()
+
+    # Prevent path traversal: ensure the resolved path is inside STORAGE_DIR
+    if not target.is_relative_to(storage):
+        abort(400, description="Invalid filename.")
+
+    if not target.is_file():
+        abort(404, description=f"File '{filename}' not found.")
+
+    return send_from_directory(storage, filename, as_attachment=True)
+
+
+
 
 if __name__ == '__main__':
     if not os.path.exists(STORAGE_DIR):
