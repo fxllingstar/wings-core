@@ -28,7 +28,7 @@ from flask import Flask, request, jsonify, send_file, abort, send_from_directory
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from pathlib import Path
-
+import bcrypt
 
 
 
@@ -77,9 +77,11 @@ def save_users(users):
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=4)
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 # Helper: Save project metadata
 def save_project_meta(project_id, data):
@@ -149,17 +151,13 @@ def login():
     if username not in users:
         users[username] = pass_hash
         save_users(users)
-    elif users[username] != pass_hash:
+    if not verify_password(password, users[username]):
         return jsonify({"error": "Invalid personal password. NUH UH"}), 401
 
     # If we got here, both locks are open!
     token = secrets.token_hex(32)
     TOKENS[token] = username
     return jsonify({"token": token, "message": "Authenticated successfully! NICEE"}), 200
-
-
-
-
 
 
 @app.route('/push', methods=['POST'])
