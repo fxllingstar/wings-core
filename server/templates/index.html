@@ -7,23 +7,109 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="page-wrapper">
-    
-    <div class="top-navbar">
-        <div class="logo">
-            <h1>wings-core</h1>
-            <img src="https://res.cloudinary.com/dpz6yopxy/image/upload/v1771494215/columbinaa1.jpg" alt="icon">
+    <div class="page-wrapper">
+        <!-- Top Navigation Bar -->
+        <div class="top-navbar">
+            <div class="logo">
+                <h1>wings-core</h1>
+                <img src="https://res.cloudinary.com/dpz6yopxy/image/upload/v1771494215/columbinaa1.jpg" alt="icon">
+            </div>
+ 
+            <div class="nav-links">
+                <a href="#stats" class="nav-link active" data-section="stats">Server Stats</a>
+                <a href="#projects" class="nav-link" data-section="projects">Projects</a>
+                <a href="#files" class="nav-link" data-section="files">Files</a>
+            </div>
         </div>
-
-         <div class="nav-links">
-            <a href="#">Server Stats</a>
-            <a href="#">Commands</a>
-            <a href="#">Files</a>
+ 
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Server Stats Section -->
+            <section id="stats-section" class="content-section active">
+                <h2>Server Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-value" id="total-projects">--</div>
+                        <div class="stat-label">Total Projects</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔖</div>
+                        <div class="stat-value" id="total-versions">--</div>
+                        <div class="stat-label">Total Versions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💾</div>
+                        <div class="stat-value" id="total-size">--</div>
+                        <div class="stat-label">Storage Used (MB)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-value" id="active-users">--</div>
+                        <div class="stat-label">Active Users</div>
+                    </div>
+                </div>
+ 
+                <div class="server-info">
+                    <h3>Server Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value status-indicator" id="server-status">
+                                <span class="status-dot online"></span> Online
+                            </span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Version:</span>
+                            <span class="info-value">1.0.0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Uptime:</span>
+                            <span class="info-value" id="uptime">Calculating...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+ 
+            <!-- Projects Section -->
+            <section id="projects-section" class="content-section">
+                <h2>Projects</h2>
+                <div class="projects-container">
+                    <div class="projects-header">
+                        <button class="btn-refresh" id="refresh-projects">🔄 Refresh</button>
+                    </div>
+                    <div class="projects-list" id="projects-list">
+                        <div class="loading">Loading projects...</div>
+                    </div>
+                </div>
+            </section>
+ 
+            <!-- Files Section -->
+            <section id="files-section" class="content-section">
+                <h2>File Browser</h2>
+                <div class="file-browser">
+                    <div class="browser-header">
+                        <select id="project-select" class="project-dropdown">
+                            <option value="">Select a project...</option>
+                        </select>
+                        <button class="btn-browse" id="browse-files">Browse Files</button>
+                    </div>
+                    <div class="file-list" id="file-list">
+                        <div class="empty-state">
+                            <p>Select a project to view files</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
+ 
+        <!-- Footer -->
+        <footer class="footer">
+            <p>wings-core Server Manager | AGPL v3.0 License | <a href="https://github.com/fxllingstar/wings-core" target="_blank">GitHub</a></p>
+        </footer>
     </div>
-</div>
-    
-
-<script src="script.js"></script>
+ 
+    <script src="script.js"></script>
 </body>
 </html>
+ 

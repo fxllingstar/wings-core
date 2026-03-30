@@ -14,10 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
-
-
-
 import datetime
 import os
 import json
@@ -30,11 +26,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 import bcrypt
 
-
-
 # Load the variables from .env into the system
 load_dotenv()
-
 
 SERVER_CONFIG_FILE = "server_config.json"
 ADMIN_TOKEN = os.getenv("WINGS_ADMIN_TOKEN")
@@ -42,8 +35,6 @@ PORT = int(os.getenv("WINGS_SERVER_PORT", 5000)) # 5000 is the fallback
 DEBUG = os.getenv("DEBUG_MODE") == "True"
 USERS_FILE = "users.json"
 TOKENS = {}  
-
-
 
 def require_auth():
     auth_header = request.headers.get("Authorization")
@@ -56,6 +47,7 @@ def require_auth():
     token = auth_header.split(" ")[1]
 
     return token in TOKENS
+
 app = Flask(__name__)
 STORAGE_DIR = "wings_storage"
 
@@ -89,9 +81,19 @@ def save_project_meta(project_id, data):
     with open(path, 'w') as f:
         json.dump(data, f, indent=4)
 
+def load_server_config():
+    if not os.path.exists(SERVER_CONFIG_FILE):
+        return {}
+    with open(SERVER_CONFIG_FILE, "r") as f:
+        return json.load(f)
+
+def save_server_config(config):
+    with open(SERVER_CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=4)
+
 @app.route('/ping', methods=['GET'])
 def ping():
-    return jsonify({"status": "alive", "message": "Wings-core Server is running!"}), 200 #Yayy
+    return jsonify({"status": "alive", "message": "Wings-core Server is running!"}), 200
 
 @app.route('/init', methods=['POST'])
 def init_project():
@@ -108,32 +110,18 @@ def init_project():
         return jsonify({"message": "Project initialized on server."}), 201
     return jsonify({"message": "Project already exists."}), 200
 
-
-
-
-def load_server_config():
-    if not os.path.exists(SERVER_CONFIG_FILE):
-        return {}
-    with open(SERVER_CONFIG_FILE, "r") as f:
-        return json.load(f)
-
-def save_server_config(config):
-    with open(SERVER_CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=4)
-
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get("username")
     password = data.get("password")
-    server_pass = data.get("server_password") # The new global lock
+    server_pass = data.get("server_password")
 
     if not username or not password:
         return jsonify({"error": "Missing credentials"}), 400
 
     server_cfg = load_server_config()
     users = load_users()
-    pass_hash = hash_password(password)
 
     # --- LEVEL 2: Global Server Password Logic ---
     if not server_cfg.get("global_password_hash"):
@@ -143,14 +131,17 @@ def login():
         server_cfg["global_password_hash"] = hash_password(server_pass)
         save_server_config(server_cfg)
     else:
-        # Verify the global lock
-        if hash_password(server_pass) != server_cfg["global_password_hash"]:
+        # FIXED: Use verify_password to check the server password
+        if not verify_password(server_pass, server_cfg["global_password_hash"]):
             return jsonify({"error": "Invalid Server Access Password. You cannot access the data. HAHA"}), 403
 
     # --- LEVEL 1: Personal User Logic ---
     if username not in users:
-        users[username] = pass_hash
+        # Only create new user if they don't exist
+        users[username] = hash_password(password)
         save_users(users)
+    
+    # Verify existing user password
     if not verify_password(password, users[username]):
         return jsonify({"error": "Invalid personal password. NUH UH"}), 401
 
@@ -159,12 +150,10 @@ def login():
     TOKENS[token] = username
     return jsonify({"token": token, "message": "Authenticated successfully! NICEE"}), 200
 
-
 @app.route('/push', methods=['POST'])
 def push():
     if not require_auth():
         return jsonify({"error": "Unauthorized"}), 403
-
 
     project_id = request.form['project_id']
     version = request.form['version']
@@ -194,9 +183,6 @@ def push():
     meta['last_author'] = TOKENS.get(token, 'Unknown')
     meta['timestamp'] = datetime.datetime.now().isoformat()
     save_project_meta(project_id, meta)
-
-    
-
     
     return jsonify({"message": f"Version {version} pushed successfully."}), 200
 
@@ -238,7 +224,6 @@ def get_logs():
     log_path = os.path.join(STORAGE_DIR, project_id, f"{version}.log")
     
     if os.path.exists(log_path):
-        # We use mimetype="text/plain" so the CLI can read it easily as text 
         return send_file(log_path, mimetype="text/plain")
     else:
         return f"No log file found for version {version}", 404
@@ -247,7 +232,6 @@ def get_logs():
 def pull():
     if not require_auth():
         return jsonify({"error": "Unauthorized"}), 403
-
 
     project_id = request.args.get('project_id')
     version = request.args.get('version')
@@ -265,21 +249,62 @@ def pull():
     else:
         return jsonify({"error": "Version not found"}), 404
 
-@app.route('/')
-def browse_files():
+# NEW: API endpoint for web dashboard to get server stats
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
     storage = Path(STORAGE_DIR)
-    projects = {}
-
+    total_projects = 0
+    total_versions = 0
+    total_size = 0
+    
     try:
         for project_dir in storage.iterdir():
             if project_dir.is_dir() and not project_dir.name.startswith('.'):
-                zips = [f.name for f in project_dir.iterdir() if f.suffix == '.zip']
-                projects[project_dir.name] = sorted(zips)
+                total_projects += 1
+                meta = get_project_meta(project_dir.name)
+                if meta:
+                    total_versions += len(meta.get('versions', []))
+                
+                # Calculate size
+                for file in project_dir.rglob('*'):
+                    if file.is_file():
+                        total_size += file.stat().st_size
     except FileNotFoundError:
-        projects = {}
+        pass
+    
+    return jsonify({
+        "total_projects": total_projects,
+        "total_versions": total_versions,
+        "total_size_mb": round(total_size / (1024 * 1024), 2),
+        "active_users": len(TOKENS)
+    })
 
-    return render_template('index.html', projects=projects)
+# NEW: API endpoint to get all projects with metadata
+@app.route('/api/projects', methods=['GET'])
+def get_projects():
+    storage = Path(STORAGE_DIR)
+    projects = []
+    
+    try:
+        for project_dir in storage.iterdir():
+            if project_dir.is_dir() and not project_dir.name.startswith('.'):
+                meta = get_project_meta(project_dir.name)
+                if meta:
+                    projects.append({
+                        "id": project_dir.name,
+                        "latest_version": meta.get('latest_version', 'N/A'),
+                        "version_count": len(meta.get('versions', [])),
+                        "last_author": meta.get('last_author', 'Unknown'),
+                        "timestamp": meta.get('timestamp', 'N/A')
+                    })
+    except FileNotFoundError:
+        pass
+    
+    return jsonify({"projects": projects})
 
+@app.route('/')
+def dashboard():
+    return render_template('index.html')
 
 @app.route('/download/<project_id>/<filename>')
 def download_web_file(project_id, filename):
@@ -299,10 +324,15 @@ def download_web_file(project_id, filename):
 
     return send_from_directory(project_dir, filename, as_attachment=True)
 
-
-
 if __name__ == '__main__':
     if not os.path.exists(STORAGE_DIR):
         os.mkdir(STORAGE_DIR)
-    # Run on port 5000
-    app.run(debug=True, port=5000)
+    
+    # Create templates directory if it doesn't exist
+    if not os.path.exists('templates'):
+        os.mkdir('templates')
+    
+    if not os.path.exists('static'):
+        os.mkdir('static')
+    
+    app.run(debug=DEBUG, port=PORT, host='0.0.0.0')
