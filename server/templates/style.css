@@ -505,3 +505,20 @@ h2 {
         font-size: 1.5rem;
     }
 }
+
+#server-status {
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.status-online {
+    color: #00ff88; /* Green */
+    text-shadow: 0 0 5px rgba(0, 255, 136, 0.5);
+}
+
+.status-offline {
+    color: #ff4444; /* Red */
+    text-shadow: 0 0 5px rgba(255, 68, 68, 0.5);
+}

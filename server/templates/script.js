@@ -1,7 +1,7 @@
 // wings-core Server Manager JavaScript
  
 // State
-let startTime = Date.now();
+let startTime = null;
 let projects = [];
  
 // DOM Elements
@@ -38,23 +38,49 @@ document.querySelectorAll('.nav-link').forEach(link => {
  
 // Load Server Stats
 async function loadStats() {
+    const statusElement = document.getElementById('server-status');
+    
     try {
         const response = await fetch('/api/stats');
+        
+        if (!response.ok) throw new Error("Server error");
+
         const data = await response.json();
         
+        // --- 1. Update Status to Online ---
+        statusElement.textContent = "Online";
+        statusElement.className = "status-online"; // We'll add CSS for this
+
+        // --- 2. Update existing data ---
+        startTime = data.start_time * 1000;
         document.getElementById('total-projects').textContent = data.total_projects;
         document.getElementById('total-versions').textContent = data.total_versions;
         document.getElementById('total-size').textContent = data.total_size_mb;
         document.getElementById('active-users').textContent = data.active_users;
         
+        updateUptime();
+        
+
+        
     } catch (error) {
-        console.error('Failed to load stats:', error);
-        showError('Failed to load server statistics');
+        // --- 3. Handle Offline State ---
+       statusElement.innerHTML = '<span class="status-dot offline"></span> Offline';
+    statusElement.className = "status-value status-indicator offline-text";
+    
+    // Show a warning in the Uptime area
+    document.getElementById('uptime').textContent = "Server Connection Lost";
+    console.error('The server might have crashed. Check crash.log on the host.');
     }
 }
  
 // Update Uptime
 function updateUptime() {
+
+    if (!startTime) {
+        document.getElementById('uptime').textContent = "Calculating...";
+        return;
+    }
+    
     const elapsed = Date.now() - startTime;
     const seconds = Math.floor(elapsed / 1000);
     const minutes = Math.floor(seconds / 60);

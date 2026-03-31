@@ -13,11 +13,14 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
-
+import time
 import datetime
 import os
 import json
 import shutil
+import logging
+import traceback
+import sys
 import hashlib
 import secrets
 from flask import Flask, request, jsonify, send_file, abort, send_from_directory, render_template
@@ -47,6 +50,8 @@ def require_auth():
     token = auth_header.split(" ")[1]
 
     return token in TOKENS
+
+SERVER_START_TIME = time.time()
 
 app = Flask(__name__)
 STORAGE_DIR = "wings_storage"
@@ -276,10 +281,21 @@ def get_stats():
         "total_projects": total_projects,
         "total_versions": total_versions,
         "total_size_mb": round(total_size / (1024 * 1024), 2),
-        "active_users": len(TOKENS)
+        "active_users": len(TOKENS),
+        "start_time": SERVER_START_TIME  
     })
 
-# NEW: API endpoint to get all projects with metadata
+@app.route('/api/logs/server', methods=['GET'])
+def get_server_logs():
+    # Only allow admin or local checks for safety
+    if not os.path.exists("wings_server.log"):
+        return jsonify({"logs": "No logs found."})
+    
+    with open("wings_server.log", "r") as f:
+        lines = f.readlines()
+        return jsonify({"logs": lines[-100:]})
+
+
 @app.route('/api/projects', methods=['GET'])
 def get_projects():
     storage = Path(STORAGE_DIR)
@@ -325,14 +341,39 @@ def download_web_file(project_id, filename):
     return send_from_directory(project_dir, filename, as_attachment=True)
 
 if __name__ == '__main__':
+    # Configure standard logging to a file
+    logging.basicConfig(
+        filename='wings_server.log',
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s'
+    )
+
     if not os.path.exists(STORAGE_DIR):
         os.mkdir(STORAGE_DIR)
     
-    # Create templates directory if it doesn't exist
     if not os.path.exists('templates'):
         os.mkdir('templates')
     
     if not os.path.exists('static'):
         os.mkdir('static')
+
+    try:
+        logging.info("Server starting...")
+        app.run(debug=DEBUG, port=PORT, host='0.0.0.0')
+    except Exception as e:
+        # This block catches CRITICAL crashes that stop the server
+        error_msg = traceback.format_exc()
+        
+        # 1. Log to the standard log
+        logging.error("FATAL CRASH DETECTED:\n" + error_msg)
+        
+        # 2. Create a specific crash dump file for easy reading
+        with open("crash.log", "w") as f:
+            f.write(f"WINGS-CORE CRASH REPORT - {datetime.datetime.now()}\n")
+            f.write("="*40 + "\n")
+            f.write(error_msg)
+            
+        print("!! SERVER CRASHED !! Details saved to crash.log")
+        sys.exit(1)
     
     app.run(debug=DEBUG, port=PORT, host='0.0.0.0')
